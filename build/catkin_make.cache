@@ -1,0 +1,2 @@
+controller_interpreter
+-DCATKIN_DEVEL_PREFIX=/home/carl/pegasus/devel -DCMAKE_INSTALL_PREFIX=/home/carl/pegasus/install -G Unix Makefiles
