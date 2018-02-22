@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>arduino_communicator</name>
+  <version>0.0.1</version>
+  <description>Sends rover control data over serial to the integrated Arduino 101 board</description>
+
+  <maintainer email="carl.heimann@gmail.com">Carl Heimann</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_export_depend>rospy</build_export_depend>
+  <exec_depend>rospy</exec_depend>
+</package>
