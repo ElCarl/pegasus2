@@ -11,13 +11,14 @@ from geometry_msgs.msg import Vector3
 DEBUG_MODE = True
 
 # Serial constants
-ARDUINO_PORT = "/dev/ttyACM0"
+ARDUINO_PORT = "/dev/ttyACM4"
 BAUDRATE = 38400
 
 # Program constants
 HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
 COMMAND_UPDATE_RATE = 20
+SERIAL_READY_BYTE  = b'\xfb'  # FB=251
 BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
 ARM_MESSAGE_BYTE = b'\xfd'    # FD=253
 DRIVE_MESSAGE_BYTE = b'\xfe'  # FE=254
@@ -45,7 +46,9 @@ def init_serial():
 def arduino_handshake(ser):
     # Ensures that arduino board is present and ready to receive commands
     # Might not actually implement this if it's not required...
-    pass
+    while ser.read() != SERIAL_READY_BYTE:
+        time.sleep(0.01)
+    ser.write(SERIAL_READY_BYTE)
 
 def write_velocity_commands(ser, linear_velocity, angular_velocity):
     # velocities should be in [-1,1]
@@ -63,7 +66,7 @@ def write_velocity_commands(ser, linear_velocity, angular_velocity):
     if DEBUG_MODE:
         time.sleep(0.01)
         rec_data = ser.read(ser.inWaiting())
-        print [ord(c) for c in rec_data]
+        print rec_data,
 
 def main():
     ser = init_serial()
