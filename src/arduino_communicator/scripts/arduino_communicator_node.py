@@ -8,15 +8,16 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
 
 # Debug constants
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 # Serial constants
-ARDUINO_PORT = "/dev/ttyACM4"
+ARDUINO_PORT_BASE = "/dev/ttyACM"
 BAUDRATE = 38400
 
 # Program constants
 HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
+TIMEOUT_MS = 5000             # If no message is received for this long, restart comms
 COMMAND_UPDATE_RATE = 20
 SERIAL_READY_BYTE  = b'\xfb'  # FB=251
 BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
@@ -37,7 +38,21 @@ def init_subscriber():
     rospy.Subscriber("rover_target_vel", Twist, rover_target_vel_callback)
 
 def init_serial():
-    ser = serial.Serial(ARDUINO_PORT, BAUDRATE)
+    port_num = 0
+    while True:
+        # Since the arduino serial port sometimes changes, we should check
+        # several of them before concluding that the Arduino is unreachable
+        full_port_name = ARDUINO_PORT_BASE + str(port_num)
+        try:
+            ser = serial.Serial(full_port_name, BAUDRATE)
+        except OSError:
+            rospy.logwarn("Arduino not found at %s, trying next", full_port_name)
+            port_num += 1
+            if port_num > 9:
+                rospy.logerr("Arduino not found on any ACM port up to 9!")
+                raise RuntimeError("Arduino connection unsuccessful")
+        else:
+            break
     # Run handshake - init will then return serial object once it is available
     arduino_handshake(ser) 
     ser.flush()
@@ -45,10 +60,14 @@ def init_serial():
 
 def arduino_handshake(ser):
     # Ensures that arduino board is present and ready to receive commands
-    # Might not actually implement this if it's not required...
+    start_time = time.clock()
     while ser.read() != SERIAL_READY_BYTE:
         time.sleep(0.01)
+        if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
+            rospy.logerr("Handshake timed out")
+            raise RuntimeError("Handshake timed out")
     ser.write(SERIAL_READY_BYTE)
+    rospy.loginfo("Handshake successful")
 
 def write_velocity_commands(ser, linear_velocity, angular_velocity):
     # velocities should be in [-1,1]
@@ -66,11 +85,11 @@ def write_velocity_commands(ser, linear_velocity, angular_velocity):
     if DEBUG_MODE:
         time.sleep(0.01)
         rec_data = ser.read(ser.inWaiting())
-        print rec_data,
+        rospy.logdebug(rec_data)
 
 def main():
-    ser = init_serial()
     init_subscriber()
+    ser = init_serial()
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
     try:
         while True:
