@@ -79,7 +79,8 @@ def main():
             write_velocity_commands(ser, lin_vel, ang_vel)
             rate.sleep()
     finally:
-        pass  # Should send a 0 to all motors
+        write_velocity_commands(ser, 0, 0)  # Send a 0 to all motors
+        ser.close()
 
 if __name__ == "__main__":
     main()
