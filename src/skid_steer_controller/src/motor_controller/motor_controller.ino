@@ -90,14 +90,20 @@ void loop() {
         linear_velocity = Serial.read();   // Both of these values should be in range [0,200]
         angular_velocity = Serial.read();  // and must be converted to [-1,1]
 
-        float rover_target_velocity[2];
-        rover_target_velocity[0] = (linear_velocity - 100) / 100.0;
-        rover_target_velocity[1] = (angular_velocity - 100) / 100.0;
+        // If the velocities are both in the accepted range
+        if (linear_velocity <= 200 && angular_velocity <= 200) {
+            // Calculate & set the wheel speeds
+            float rover_target_velocity[2];
+            rover_target_velocity[0] = (linear_velocity - 100) / 100.0;
+            rover_target_velocity[1] = (angular_velocity - 100) / 100.0;
 
-        float wheel_speeds[2];
-        get_control_outputs(wheel_speeds, rover_target_velocity);
+            float wheel_speeds[2];
+            get_control_outputs(wheel_speeds, rover_target_velocity);
 
-        set_wheel_speeds(wheel_speeds);
+            set_wheel_speeds(wheel_speeds);
+        }
+        // If either of the speeds is wrong, we've probably received a command byte by
+        //  mistake - so disregard the message.
     }
     Serial.println("Awaiting END_MESSAGE_BYTE");
     while (Serial.read() != END_MESSAGE_BYTE) {}
@@ -158,8 +164,8 @@ void set_wheel_speeds(float wheel_speeds[]) {
         duty_cycle = 0.5 * (1 + target_wheel_speed);
         pwm.setPWM(L_MOTOR_PWM_CHANNELS[wheel_num], 0, (PWM_TICKS - 1) * duty_cycle);
 
-        // Then right wheel
-        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
+        // Then right wheel - negative since they turn opposite to the left wheels
+        target_wheel_speed = -1 * wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
         duty_cycle = 0.5 * (1 + target_wheel_speed);
         pwm.setPWM(R_MOTOR_PWM_CHANNELS[wheel_num], 0, (PWM_TICKS - 1) * duty_cycle);
     }

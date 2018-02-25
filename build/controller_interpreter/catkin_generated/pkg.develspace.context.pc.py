@@ -4,5 +4,5 @@ PROJECT_PKG_CONFIG_INCLUDE_DIRS = "".split(';') if "" != "" else []
 PROJECT_CATKIN_DEPENDS = "".replace(';', ' ')
 PKG_CONFIG_LIBRARIES_WITH_PREFIX = "".split(';') if "" != "" else []
 PROJECT_NAME = "controller_interpreter"
-PROJECT_SPACE_DIR = "/home/carl/pegasus/devel"
+PROJECT_SPACE_DIR = "/home/pegasus/pegasus2/devel"
 PROJECT_VERSION = "0.0.0"

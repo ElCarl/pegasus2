@@ -1,8 +1,8 @@
-# Install script for directory: /home/carl/pegasus/src
+# Install script for directory: /home/pegasus/pegasus2/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/carl/pegasus/install")
+  set(CMAKE_INSTALL_PREFIX "/home/pegasus/pegasus2/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -44,80 +44,82 @@ endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/_setup_util.py")
+   "/home/pegasus/pegasus2/install/_setup_util.py")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE PROGRAM FILES "/home/carl/pegasus/build/catkin_generated/installspace/_setup_util.py")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE PROGRAM FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/_setup_util.py")
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/env.sh")
+   "/home/pegasus/pegasus2/install/env.sh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE PROGRAM FILES "/home/carl/pegasus/build/catkin_generated/installspace/env.sh")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE PROGRAM FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/env.sh")
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/setup.bash")
+   "/home/pegasus/pegasus2/install/setup.bash")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE FILE FILES "/home/carl/pegasus/build/catkin_generated/installspace/setup.bash")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE FILE FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/setup.bash")
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/setup.sh")
+   "/home/pegasus/pegasus2/install/setup.sh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE FILE FILES "/home/carl/pegasus/build/catkin_generated/installspace/setup.sh")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE FILE FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/setup.sh")
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/setup.zsh")
+   "/home/pegasus/pegasus2/install/setup.zsh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE FILE FILES "/home/carl/pegasus/build/catkin_generated/installspace/setup.zsh")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE FILE FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/setup.zsh")
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/carl/pegasus/install/.rosinstall")
+   "/home/pegasus/pegasus2/install/.rosinstall")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/home/carl/pegasus/install" TYPE FILE FILES "/home/carl/pegasus/build/catkin_generated/installspace/.rosinstall")
+file(INSTALL DESTINATION "/home/pegasus/pegasus2/install" TYPE FILE FILES "/home/pegasus/pegasus2/build/catkin_generated/installspace/.rosinstall")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("/home/carl/pegasus/build/gtest/cmake_install.cmake")
-  include("/home/carl/pegasus/build/controller_interpreter/cmake_install.cmake")
+  include("/home/pegasus/pegasus2/build/gtest/cmake_install.cmake")
+  include("/home/pegasus/pegasus2/build/arduino_communicator/cmake_install.cmake")
+  include("/home/pegasus/pegasus2/build/skid_steer_controller/cmake_install.cmake")
+  include("/home/pegasus/pegasus2/build/controller_interpreter/cmake_install.cmake")
 
 endif()
 
@@ -129,5 +131,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/carl/pegasus/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/pegasus/pegasus2/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

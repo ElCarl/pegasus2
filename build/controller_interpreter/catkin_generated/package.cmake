@@ -1,6 +1,6 @@
 set(_CATKIN_CURRENT_PACKAGE "controller_interpreter")
 set(controller_interpreter_VERSION "0.0.0")
-set(controller_interpreter_MAINTAINER "carl <carl@todo.todo>")
+set(controller_interpreter_MAINTAINER "carl <carl.heimann@gmail.com>")
 set(controller_interpreter_PACKAGE_FORMAT "2")
 set(controller_interpreter_BUILD_DEPENDS "joy" "rospy")
 set(controller_interpreter_BUILD_EXPORT_DEPENDS "joy" "rospy")

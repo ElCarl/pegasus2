@@ -1,8 +1,8 @@
-prefix=/home/carl/pegasus/devel
+prefix=/home/pegasus/pegasus2/devel
 
 Name: controller_interpreter
 Description: Description of controller_interpreter
 Version: 0.0.0
 Cflags: 
-Libs: -L/home/carl/pegasus/devel/lib 
+Libs: -L/home/pegasus/pegasus2/devel/lib 
 Requires: 
