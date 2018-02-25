@@ -1,8 +1,0 @@
-prefix=/home/pegasus/pegasus2/install
-
-Name: controller_interpreter
-Description: Description of controller_interpreter
-Version: 0.0.0
-Cflags: 
-Libs: -L/home/pegasus/pegasus2/install/lib 
-Requires: 

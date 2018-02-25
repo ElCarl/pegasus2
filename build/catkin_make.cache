@@ -1,2 +1,0 @@
-arduino_communicator:controller_interpreter:skid_steer_controller
--DCATKIN_DEVEL_PREFIX=/home/pegasus/pegasus2/devel -DCMAKE_INSTALL_PREFIX=/home/pegasus/pegasus2/install -G Unix Makefiles
