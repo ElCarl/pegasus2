@@ -17,7 +17,7 @@ BAUDRATE = 38400
 # Program constants
 HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
-TIMEOUT_MS = 5000             # If no message is received for this long, restart comms
+TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
 SERIAL_READY_BYTE  = b'\xfb'  # FB=251
 BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
@@ -61,7 +61,7 @@ def init_serial():
 def arduino_handshake(ser):
     # Ensures that arduino board is present and ready to receive commands
     start_time = time.clock()
-    while ser.read() != SERIAL_READY_BYTE:
+    while ser.read() != SERIAL_READY_BYTE:  # Should this really fail like this? I think it should actually just keep raising an error but keep trying. Otherwise could be very faffy
         time.sleep(0.01)
         if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
             rospy.logerr("Handshake timed out")

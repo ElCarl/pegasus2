@@ -18,7 +18,9 @@ const float WHEELBASE_WIDTH_M  = 0.7;    // metres, approximate
 const float WHEELBASE_LENGTH_M = 0.908;  // metres
 const float WHEEL_RADIUS_M     = 0.2;    // metres, approximate
 
-// PWM pin constants
+// PWM constants
+const unsigned int  PWM_FREQUENCY      = 1600;    // Max supported freq of current PWM board is 1600 Hz
+const unsigned long PWM_I2C_CLOCKSPEED = 400000;  // I2C "fast" mode @ 400 kHz
 const uint8_t L_FRONT_MOTOR_PWM = 0;
 const uint8_t L_MID_MOTOR_PWM   = 1;
 const uint8_t L_REAR_MOTOR_PWM  = 2;
@@ -29,11 +31,13 @@ const uint8_t L_MOTOR_PWM_CHANNELS[] = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_RE
 const uint8_t R_MOTOR_PWM_CHANNELS[] = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const byte SERIAL_READY_BYTE  = 251;
-const byte BEGIN_MESSAGE_BYTE = 252;
-const byte ARM_MESSAGE_BYTE   = 253;
-const byte DRIVE_MESSAGE_BYTE = 254;
-const byte END_MESSAGE_BYTE   = 255;
+const unsigned long BAUDRATE   = 38400;
+const unsigned long TIMEOUT_MS = 5000;  // TODO - actually implement this!
+const byte SERIAL_READY_BYTE   = 251;
+const byte BEGIN_MESSAGE_BYTE  = 252;
+const byte ARM_MESSAGE_BYTE    = 253;
+const byte DRIVE_MESSAGE_BYTE  = 254;
+const byte END_MESSAGE_BYTE    = 255;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -45,13 +49,12 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);  // Initialise the Arduino built in LED to allow it to indicate status
     digitalWrite(LED_BUILTIN, LOW);
-    Serial.begin(38400);
+    Serial.begin(BAUDRATE);
     digitalWrite(LED_BUILTIN, HIGH);
 
     pwm.begin();
-    pwm.setPWMFreq(1600);  // Max pwm freq for motor board is 20k, max for pwm board is 1600
-
-    Wire.setClock(400000);  // Some mode that speeds something up - if something weird breaks this should be the first thing to go
+    pwm.setPWMFreq(PWM_FREQUENCY);
+    Wire.setClock(PWM_I2C_CLOCKSPEED);  // Sets the I2C bus speed
 
     // Start PWM with all motors stationary
     init_pwm();
@@ -102,7 +105,7 @@ void loop() {
 
             set_wheel_speeds(wheel_speeds);
         }
-        // If either of the speeds is wrong, we've probably received a command byte by
+        //  If either of the speeds is wrong, we've probably received a command byte by
         //  mistake - so disregard the message.
     }
     Serial.println("Awaiting END_MESSAGE_BYTE");
