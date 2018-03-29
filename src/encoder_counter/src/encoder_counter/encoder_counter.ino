@@ -1,3 +1,5 @@
+#include <EasyTransfer.h>
+
 // Input constants
 const uint8_t N_PINS = 18;
 const uint8_t N_ENCS = 9;   // This should be N_PINS / 2!
@@ -20,16 +22,33 @@ long encoder_counts[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint8_t state;
 unsigned long transmissions = 0;  // How many times the program has sent the encoder counts
 
+// Initialise the EasyTransfer object
+EasyTransfer EasyTX;
+
+// Define the EasyTransfer TX data structure
+struct SEND_DATA_STRUCTURE {
+    uint32_t tick_stamp_ms;  // Timestamp in ms since program start
+    int32_t encoder_counts[N_ENCS];
+};
+
+SEND_DATA_STRUCTURE encoder_counts_struct;
+
 void setup() {
+    // Pin modes
     for (uint8_t pin = 0; pin < N_PINS; pin++) {
         pinMode(INPUT_PINS[pin], INPUT);
     }
     
+    // Begin serial connection
     Serial.begin(BAUDRATE);
     
+    // Begin EasyTransfer
+    EasyTX.begin(details(encoder_counts_struct), &Serial);
+    
+    // Left in despite EasyTransfer since we still want to ensure connection before proceeding
     while (Serial.read() != SERIAL_READY_BYTE) {
-        delay(100);
         Serial.write(SERIAL_READY_BYTE);
+        delay(100);
     }
 }
 
@@ -49,7 +68,8 @@ void loop() {
     if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY) {
         // multiply by 1000 to change from s to ms. Multiplication faster than division, at the cost of a little clarity.
         // Using millis since micros overflows after 70 minutes, which could easily occur when running the rover. Millis takes 50 days to overflow - somewhat less likely! And we don't need the additional accuracy anyway, unless TRANSMIT_FREQUENCY nears 1000
-        transmit_encoder_counts();
+        ////transmit_encoder_counts();
+        transmit_encoder_counts_easy();
     }  
 }
 
@@ -61,6 +81,7 @@ void encoder_pin_change(uint8_t encoder) {
     encoder_counts[encoder] += LOOKUP_TABLE[enc_vals[encoder] & 0b1111];
 }
 
+// Deprecated if EasyTransfer works
 void transmit_encoder_counts() {
     Serial.write(BEGIN_MESSAGE_BYTE);
     // First write all encoder values
@@ -79,6 +100,15 @@ void transmit_encoder_counts() {
     transmissions++;
 }
 
+void transmit_encoder_counts_easy() {
+    encoder_counts_struct.tick_stamp_ms = millis();
+    for (uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
+        encoder_counts_struct.encoder_counts[encoder] = encoder_counts[encoder];
+    }
+    EasyTX.sendData();
+}
+
+// Deprecated if EasyTransfer works
 long calculate_checksum() {
     // Very simplistic checksum - just sum all the encoder values. It's checking for transmission
     // errors, which should cause pretty large deviations, so I don't think it needs to be too advanced.
@@ -93,6 +123,7 @@ long calculate_checksum() {
     return checksum;
 }
 
+// Deprecated if EasyTransfer works
 // Converts a long to an array of 4 bytes for serial transmission
 void long_to_bytes(long val, byte bytes[]) {
     bytes[0] =  val        & 255;
