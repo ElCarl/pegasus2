@@ -2,7 +2,7 @@
 <package format="2">
   <name>arduino_communicator</name>
   <version>0.0.1</version>
-  <description>Sends rover control data over serial to the integrated Arduino 101 board</description>
+  <description>Sends rover control data to & read encoder data from the integrated Intel Curie board</description>
 
   <maintainer email="carl.heimann@gmail.com">Carl Heimann</maintainer>
 
@@ -10,6 +10,8 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>rospy</build_depend>
+  <build_depend>message_generation</build_depend>
   <build_export_depend>rospy</build_export_depend>
   <exec_depend>rospy</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
 </package>
