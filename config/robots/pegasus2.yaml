@@ -1,4 +1,4 @@
 wheelbase_width_m: 0.7  # Approximate
 wheelbase_length_m: 0.908
 wheel_radius_m: 0.2  # Approximate
-encoder_ticks_per_wheel_rev: 980  # Check this
+encoder_ticks_per_wheel_rev: 980  # Check this: based on 49:1 motor reduction, a further 2:1 reduction to the wheels and 10 encoder ticks per motor rev

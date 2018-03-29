@@ -49,6 +49,10 @@ const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropri
 const uint8_t PWM_CHANNELS = 16;
 const unsigned int PWM_TICKS = 4096;
 
+// Global variables
+uint32_t enc_count_handshake_time_ms;
+uint32_t handshake_offset_ms;
+
 // Initialise the PWM board object
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -91,12 +95,16 @@ void setup() {
         delay(100);
         // May need to implement some way to calibrate for different start times of Arduino boards? Offset in ms between boards?
     }
-
+    
+    enc_count_handshake_time_ms = millis();
+    
     // Send the serial ready byte to indicate readiness for data while awaiting readiness confirmation from Braswell chip
     while (Serial.read() != SERIAL_READY_BYTE) {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);
     }
+    
+    handshake_offset_ms = millis() - enc_count_handshake_time_ms;
 }
 
 void loop() {
@@ -154,6 +162,8 @@ void loop() {
     
     // If we've successfully received data from the encoder counter Uno
     if (EasyRX.receiveData()) {
+        // Convert timestamp to this processor's reference timeframe
+        encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
         // Transmit encoder counts to the Braswell chip
         send_encoder_data();
         // Probably will also do e.g. speed estimation calcs here? If implementing PID control of wheels

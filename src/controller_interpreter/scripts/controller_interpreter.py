@@ -131,8 +131,6 @@ def get_commands():
     gripper.max_effort = -1 # Negative values are ignored - this should be negative unless a
                             # gripper force sensor is implemented
 
-    
-
     return twist, gripper
 
 

@@ -33,6 +33,8 @@ struct SEND_DATA_STRUCTURE {
 
 SEND_DATA_STRUCTURE encoder_counts_struct;
 
+uint32_t handshake_time_ms;
+
 void setup() {
     // Pin modes
     for (uint8_t pin = 0; pin < N_PINS; pin++) {
@@ -50,6 +52,8 @@ void setup() {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);
     }
+    
+    handshake_time_ms = millis();
 }
 
 void loop() {
@@ -88,12 +92,12 @@ void transmit_encoder_counts() {
     byte long_buffer[4];
     for (uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
         // Must convert long to series of bytes for transmission
-        long_to_bytes(encoder_counts[encoder], long_buffer);
+        int32t_to_bytes(encoder_counts[encoder], long_buffer);
         Serial.write(long_buffer, 4);
     }
     // Then calculate and write the checksum
     long checksum = calculate_checksum();
-    long_to_bytes(checksum, long_buffer);
+    int32t_to_bytes(checksum, long_buffer);
     Serial.write(long_buffer, 4);
 
     Serial.write(END_MESSAGE_BYTE);
@@ -101,7 +105,7 @@ void transmit_encoder_counts() {
 }
 
 void transmit_encoder_counts_easy() {
-    encoder_counts_struct.tick_stamp_ms = millis();
+    encoder_counts_struct.tick_stamp_ms = millis() - handshake_time_ms;
     for (uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
         encoder_counts_struct.encoder_counts[encoder] = encoder_counts[encoder];
     }
@@ -123,9 +127,8 @@ long calculate_checksum() {
     return checksum;
 }
 
-// Deprecated if EasyTransfer works
 // Converts a long to an array of 4 bytes for serial transmission
-void long_to_bytes(long val, byte bytes[]) {
+void int32t_to_bytes(int32_t val, byte bytes[]) {
     bytes[0] =  val        & 255;
     bytes[1] = (val >> 8)  & 255;
     bytes[2] = (val >> 16) & 255;
