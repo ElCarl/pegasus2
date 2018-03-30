@@ -132,54 +132,6 @@ class RoverController:
         rospy.loginfo("encoder_counts publisher initialised")
 
 
-
-def init_publisher():
-    global encoder_pub
-    encoder_pub = rospy.Publisher("encoder_counts", EncoderCounts, queue_size=50)
-    rospy.loginfo("encoder_counts publisher initialised")
-
-
-def encoder_message_from_data(encoder_data):
-    """
-    Converts a tuple of encoder data into an EncoderCounts ROS message
-    """
-    encoder_counts = EncoderCounts()
-    
-    header = Header()
-
-    # Timestamp is the first element
-    arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
-    timestamp_ms = (handshake_time * 1000) + arduino_timestamp_ms
-    timestamp_s  = int(timestamp_ms / 1000)
-    timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000
-    header.stamp.secs = timestamp_s
-    header.stamp.nsecs = timestamp_ns
-
-    # Left wheel encoders
-    lf = encoder_data[L_FRONT_MOTOR_ENCODER]
-    lm = encoder_data[L_MID_MOTOR_ENCODER]
-    lr = encoder_data[L_REAR_MOTOR_ENCODER]
-    encoder_counts.left_wheel_counts = [lf, lm, lr]
-    
-    # Right wheel encoders
-    rf = encoder_data[R_FRONT_MOTOR_ENCODER]
-    rm = encoder_data[R_MID_MOTOR_ENCODER]
-    rr = encoder_data[R_REAR_MOTOR_ENCODER]
-    encoder_counts.left_wheel_counts = [rf, rm, rr]
-    
-    # Then the remaining encoders
-    encoder_counts.base_rotation_counts  = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
-    encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
-    encoder_counts.gripper_counts        = encoder_data[GRIPPER_MOTOR_ENCODER]
-    
-    return encoder_counts
-
-
-
-
-
-
-
 class MotorController:
     serial_conn = None
     handshake_time = None
@@ -188,8 +140,10 @@ class MotorController:
         self.base_port_name = base_port_name
         self.baudrate = baudrate
         self.port_num = 0
+        self.init_serial()
+        self.serial_handshake()
 
-    def init_serial(self, retry=True, retry_limit=9):
+    def init_serial(self, retry_limit=9):
         while True:
             self.full_port_name = self.base_port_name + str(self.port_num)
             try:
@@ -197,8 +151,9 @@ class MotorController:
             except OSError:
                 rospy.logwarn("Arduino not found at %s, trying next", full_port_name)
                 port_num += 1
-                if port_num > 9:
-                    rospy.logerr("Arduino not found on any ACM port up to 9!")
+                if port_num > retry_limit:
+                    rospy.logfatal("Arduino not found on any ACM port up to %d!",
+                                   retry_limit)
                     raise RuntimeError("Arduino connection unsuccessful")
             else:
                 break
@@ -214,7 +169,10 @@ class MotorController:
                 raise RuntimeError("Handshake timed out")
             self.serial_conn.write(SERIAL_READY_BYTE)
             time.sleep(0.1)
-        self.handshake_time = time.time()  # Ensure that time.time returns an acceptably accurate number - as long as it's ~0.1s accurate it should be ok
+        self.handshake_time = time.time()  # Ensure that time.time returns an
+                                           # acceptably accurate number - as
+                                           # long as it's ~0.1s accurate it
+                                           # should be ok
         rospy.loginfo("Handshake successful")
 
     def send_commands(self, command_struct):
@@ -270,10 +228,6 @@ class MotorController:
 
 
 
-
-
-
-
 ###################################
 ###### Module-level functions #####
 ###################################
@@ -290,6 +244,40 @@ def calc_checksum(char_string):
     for char in chars:
         checksum ^= char
     return checksum
+
+
+
+#############################
+##### Main Program Flow #####
+#############################
+
+def main_old():
+    init_subscriber()
+    init_publisher()
+    ser = init_serial()
+    rate = rospy.Rate(COMMAND_UPDATE_RATE)
+    try:
+        while True:
+            lin_vel = last_control_data.linear.x
+            ang_vel = last_control_data.angular.z
+            write_velocity_commands(ser, lin_vel, ang_vel)
+            if ser.in_waiting > 0:
+                receive_serial_data(ser)
+
+            rate.sleep()
+    finally:
+        write_velocity_commands(ser, 0, 0)  # Send a 0 to all motors
+        ser.close()
+
+def main_oop():
+    motor_controller = MotorController()
+    rover_controller = RoverController()
+    rover_controller.init_publisher()
+    # then main loop code
+
+if __name__ == "__main__":
+    main_old()
+
 
 
 ####################################################################
@@ -416,30 +404,43 @@ def init_subscriber():
     rospy.Subscriber("rover_target_vel", Twist, rover_target_vel_callback)
     rospy.loginfo("subscribed to rover_target_vel")
 
+def init_publisher():
+    global encoder_pub
+    encoder_pub = rospy.Publisher("encoder_counts", EncoderCounts, queue_size=50)
+    rospy.loginfo("encoder_counts publisher initialised")
 
 
-def main_old():
-    init_subscriber()
-    init_publisher()
-    ser = init_serial()
-    rate = rospy.Rate(COMMAND_UPDATE_RATE)
-    try:
-        while True:
-            lin_vel = last_control_data.linear.x
-            ang_vel = last_control_data.angular.z
-            write_velocity_commands(ser, lin_vel, ang_vel)
-            if ser.in_waiting > 0:
-                receive_serial_data(ser)
+def encoder_message_from_data(encoder_data):
+    """
+    Converts a tuple of encoder data into an EncoderCounts ROS message
+    """
+    encoder_counts = EncoderCounts()
+    
+    header = Header()
 
-            rate.sleep()
-    finally:
-        write_velocity_commands(ser, 0, 0)  # Send a 0 to all motors
-        ser.close()
+    # Timestamp is the first element
+    arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
+    timestamp_ms = (handshake_time * 1000) + arduino_timestamp_ms
+    timestamp_s  = int(timestamp_ms / 1000)
+    timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000
+    header.stamp.secs = timestamp_s
+    header.stamp.nsecs = timestamp_ns
 
-def main_oop():
-    pass
-
-
-if __name__ == "__main__":
-    main_old()
-
+    # Left wheel encoders
+    lf = encoder_data[L_FRONT_MOTOR_ENCODER]
+    lm = encoder_data[L_MID_MOTOR_ENCODER]
+    lr = encoder_data[L_REAR_MOTOR_ENCODER]
+    encoder_counts.left_wheel_counts = [lf, lm, lr]
+    
+    # Right wheel encoders
+    rf = encoder_data[R_FRONT_MOTOR_ENCODER]
+    rm = encoder_data[R_MID_MOTOR_ENCODER]
+    rr = encoder_data[R_REAR_MOTOR_ENCODER]
+    encoder_counts.left_wheel_counts = [rf, rm, rr]
+    
+    # Then the remaining encoders
+    encoder_counts.base_rotation_counts  = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
+    encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
+    encoder_counts.gripper_counts        = encoder_data[GRIPPER_MOTOR_ENCODER]
+    
+    return encoder_counts
