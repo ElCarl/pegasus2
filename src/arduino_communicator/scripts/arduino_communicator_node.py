@@ -112,6 +112,30 @@ def write_velocity_commands(ser, linear_velocity, angular_velocity):
         rec_data = ser.read(ser.inWaiting())
         rospy.logdebug(rec_data)
 
+def write_command_struct(ser, command_struct):
+    """
+    Writes the desired commands in command_struct to the device over ser.
+    The command_struct *must* be the exact same as the struct to receive it on the other device!
+    Currently, it is simply 8 bytes:
+    lin_vel
+    ang_vel
+    base_rotate
+    actuator_1_move
+    actuator_2_move
+    wrist_rotate
+    actuator_wrist_move
+    gripper_move
+
+    A command to control the servo will most likely be added at some point, probably another byte
+    """
+    ser.write(BEGIN_MESSAGE_BYTE)
+    command_data = struct.pack("<8B", *command_struct)
+    # Send struct length - must convert len(command_data) to bytearray
+    ser.write(bytearray((len(command_data),)))
+    ser.write(command_data)
+    ser.write(END_MESSAGE_BYTE)
+
+
 def receive_serial_data(ser):
     rec_byte = ser.read()
     if rec_byte == ENCODER_DATA_BYTE:
