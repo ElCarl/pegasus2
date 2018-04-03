@@ -3,9 +3,11 @@
 import rospy
 import serial
 import time
+import struct
 
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
+from std_msgs.msg import Header
 from arduino_communicator.msg import EncoderCounts
 
 # Debug constants
@@ -20,22 +22,22 @@ HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
-ENCODER_DATA_BYTE   = b'\xfa'  # FA=250
-SERIAL_READY_BYTE   = b'\xfb'  # FB=251
-BEGIN_MESSAGE_BYTE  = b'\xfc'  # FC=252
-ARM_MESSAGE_BYTE    = b'\xfd'  # FD=253
-DRIVE_MESSAGE_BYTE  = b'\xfe'  # FE=254
-END_MESSAGE_BYTE    = b'\xff'  # FF=255
+ENCODER_DATA_BYTE = b'\xfa'  # FA=250
+SERIAL_READY_BYTE = b'\xfb'  # FB=251
+BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
+ARM_MESSAGE_BYTE = b'\xfd'  # FD=253
+DRIVE_MESSAGE_BYTE = b'\xfe'  # FE=254
+END_MESSAGE_BYTE = b'\xff'  # FF=255
 
 # Encoder constants
 N_ENCS = 9
 ENCODER_MESSAGE_TIMEOUT_MS = 50
 L_FRONT_MOTOR_ENCODER = 1
-L_MID_MOTOR_ENCODER   = 2
-L_REAR_MOTOR_ENCODER  = 3
+L_MID_MOTOR_ENCODER = 2
+L_REAR_MOTOR_ENCODER = 3
 R_FRONT_MOTOR_ENCODER = 4
-R_MID_MOTOR_ENCODER   = 5
-R_REAR_MOTOR_ENCODER  = 6
+R_MID_MOTOR_ENCODER = 5
+R_REAR_MOTOR_ENCODER = 6
 BASE_ROTATE_MOTOR_ENCODER = 7
 WRIST_ROTATE_MOTOR_ENCODER = 8
 GRIPPER_MOTOR_ENCODER = 9
@@ -51,12 +53,13 @@ last_encoder_data = ()
 
 class RoverCommand:
     drive_command = None
-    arm_command   = None
+    arm_command = None
 
     def __init__(self):
         lin_cmd = Vector3(0, 0, 0)
         ang_cmd = Vector3(0, 0, 0)
         self.drive_command = Twist(lin_cmd, ang_cmd)
+        rospy.logerr("arm command update not yet implemented")
         # TODO add other commands - need to create ROS message
 
     def update_drive_command(self, vel_topic_data):
@@ -71,26 +74,44 @@ class RoverCommand:
         This method should be passed as the ROS subscriber callback
         for the arm movement commands topic
         """
-        raise NotImplementedError
         self.arm_command = arm_topic_data
 
 
 class RoverController:
     last_command = None
     motor_controller = None
+    rover_command = None
     encoder_publisher = None
-    def __init__(self, motor_controller):
+
+    def __init__(self, motor_controller, rover_command):
         self.motor_controller = motor_controller
+        self.rover_command = rover_command
         motor_controller.encoder_callback = self.publish_enc_counts
         self.command = RoverCommand()
         rospy.loginfo("RoverController instance initialised")
+
+    def pass_commands(self):
+        """
+        Passes the most recent commands from self.rover_command
+        into motor_controller to be sent to the motor_controller
+        board
+        """
+        lin_vel = self.rover_command.linear.x
+        ang_vel = self.rover_command.angular.z
+
+        command_struct = [0]*8
+        # Currently only sets wheel motor data
+        command_struct[0] = lin_vel
+        command_struct[1] = ang_vel
+
+        self.motor_controller.send_commands(command_struct)
 
     def publish_enc_counts(self, encoder_data):
         """
         Converts a tuple of encoder data into an EncoderCounts
         ROS message and publishes it
         """
-        if not encoder_publisher:
+        if not self.encoder_publisher:
             rospy.logerr_throttle(10, "encoder_publisher not"
                                       "initialised, cannot publish")
             return  # Abort publishing
@@ -101,7 +122,7 @@ class RoverController:
         # Timestamp is the first element
         arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
         timestamp_ms = (self.motor_controller.handshake_time * 1000) + arduino_timestamp_ms
-        timestamp_s  = int(timestamp_ms / 1000)
+        timestamp_s = int(timestamp_ms / 1000)
         timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000
         header.stamp.secs = timestamp_s
         header.stamp.nsecs = timestamp_ns
@@ -119,9 +140,9 @@ class RoverController:
         encoder_counts.left_wheel_counts = [rf, rm, rr]
         
         # Then the remaining encoders
-        encoder_counts.base_rotation_counts  = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
+        encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
         encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
-        encoder_counts.gripper_counts        = encoder_data[GRIPPER_MOTOR_ENCODER]
+        encoder_counts.gripper_counts = encoder_data[GRIPPER_MOTOR_ENCODER]
         
         # Finally, publish the data
         self.encoder_publisher.publish(encoder_counts)
@@ -134,8 +155,11 @@ class RoverController:
 
 class MotorController:
     serial_conn = None
+    full_port_name = None
+    port_num = None
     handshake_time = None
-    encoder_callback = None
+    encoder_callback = None  # Set by RoverController on initialisation
+
     def __init__(self, base_port_name=ARDUINO_PORT_BASE, baudrate=BAUDRATE):
         self.base_port_name = base_port_name
         self.baudrate = baudrate
@@ -149,13 +173,14 @@ class MotorController:
             try:
                 self.serial_conn = serial.Serial(self.full_port_name, self.baudrate)
             except OSError:
-                rospy.logwarn("Arduino not found at %s, trying next", full_port_name)
-                port_num += 1
-                if port_num > retry_limit:
+                rospy.logwarn("Arduino not found at %s, trying next", self.full_port_name)
+                self.port_num += 1
+                if self.port_num > retry_limit:
                     rospy.logfatal("Arduino not found on any ACM port up to %d!",
                                    retry_limit)
                     raise RuntimeError("Arduino connection unsuccessful")
             else:
+                rospy.loginfo("Serial connection made")
                 break
 
     def serial_handshake(self):
@@ -169,10 +194,7 @@ class MotorController:
                 raise RuntimeError("Handshake timed out")
             self.serial_conn.write(SERIAL_READY_BYTE)
             time.sleep(0.1)
-        self.handshake_time = time.time()  # Ensure that time.time returns an
-                                           # acceptably accurate number - as
-                                           # long as it's ~0.1s accurate it
-                                           # should be ok
+        self.handshake_time = time.time()
         rospy.loginfo("Handshake successful")
 
     def send_commands(self, command_struct):
@@ -189,7 +211,7 @@ class MotorController:
         """
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         command_data = struct.pack("<8B", *command_struct)
-        # Send struct length - must convert len(command_data) to bytearray
+        # Send struct length - must convert len(command_data) to byte array
         self.serial_conn.write(bytearray((len(command_data),)))
         self.serial_conn.write(command_data)
         self.serial_conn.write(END_MESSAGE_BYTE)
@@ -227,10 +249,9 @@ class MotorController:
             rospy.logerr("Encoder checksum failure, ignoring message")
 
 
-
-###################################
-###### Module-level functions #####
-###################################
+##########################
+# Module-level functions #
+##########################
 
 def calc_checksum(char_string):
     """
@@ -246,13 +267,12 @@ def calc_checksum(char_string):
     return checksum
 
 
-
-#############################
-##### Main Program Flow #####
-#############################
+#####################
+# Main Program Flow #
+#####################
 
 def main_old():
-    init_subscriber()
+    init_subscriber_old()
     init_publisher()
     ser = init_serial()
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
@@ -269,20 +289,44 @@ def main_old():
         write_velocity_commands(ser, 0, 0)  # Send a 0 to all motors
         ser.close()
 
+
 def main_oop():
+    # Start the ROS node
+    rospy.init_node("arduino_communicator_node")
+
+    # Create & initialise objects
+    rover_command = RoverCommand()
     motor_controller = MotorController()
-    rover_controller = RoverController()
+    rover_controller = RoverController(motor_controller, rover_command)
+
+    # Initialise ROS publishers
     rover_controller.init_publisher()
+
+    # Initialise ROS subscribers
+    rospy.Subscriber("rover_target_vel", Twist, rover_controller.update_drive_command)
+    # rospy.Subscriber("rover_arm_commands", [___], rover_controller.update_arm_command)
+
+    # Set ROS rate
+    rate = rospy.Rate(COMMAND_UPDATE_RATE)
+
     # then main loop code
+    try:
+        while True:
+            rover_controller.pass_commands()
+            motor_controller.read_serial_data()  # Should this also be encapsulated within RoverController?
+            rate.sleep()
+    finally:
+        pass
+        # TODO Stop all motors: implement a method in rover_controller/motor_controller
+            
 
 if __name__ == "__main__":
-    main_old()
+    main_oop()
 
 
-
-####################################################################
-##### Putting all old code here while refactoring into classes #####
-####################################################################
+############################################################
+# Putting all old code here while refactoring into classes #
+############################################################
 
 def write_command_struct(ser, command_struct):
     """
@@ -302,10 +346,11 @@ def write_command_struct(ser, command_struct):
     """
     ser.write(BEGIN_MESSAGE_BYTE)
     command_data = struct.pack("<8B", *command_struct)
-    # Send struct length - must convert len(command_data) to bytearray
+    # Send struct length - must convert len(command_data) to byte array
     ser.write(bytearray((len(command_data),)))
     ser.write(command_data)
     ser.write(END_MESSAGE_BYTE)
+
 
 def write_velocity_commands(ser, linear_velocity, angular_velocity):
     # velocities should be in [-1,1]
@@ -324,6 +369,7 @@ def write_velocity_commands(ser, linear_velocity, angular_velocity):
         time.sleep(0.01)
         rec_data = ser.read(ser.inWaiting())
         rospy.logdebug(rec_data)
+
 
 def init_serial():
     port_num = 0
@@ -346,6 +392,7 @@ def init_serial():
     ser.flush()
     return ser
 
+
 def arduino_handshake(ser):
     # Ensures that arduino board is present and ready to receive commands
     start_time = time.clock()
@@ -356,19 +403,17 @@ def arduino_handshake(ser):
         if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
             rospy.logerr("Handshake timed out")
             raise RuntimeError("Handshake timed out")
-        ser.write(SERIAL_READY_BYTE)  # Indented line to potentially make it more
-                                      # robust - will keep sending SERIAL_READY_BYTE.
-                                      # Try unindenting if it breaks, though.
+        ser.write(SERIAL_READY_BYTE)
         time.sleep(0.1)
     global handshake_time
-    handshake_time = time.time()  # Ensure that time.time returns an acceptably
-                                  # accurate number - as long as it's ~0.1s
-                                  # accurate it should be ok
+    handshake_time = time.time()
     rospy.loginfo("Handshake successful")
+
 
 def rover_target_vel_callback(data):
     global last_control_data
     last_control_data = data
+
 
 def receive_serial_data(ser):
     rec_byte = ser.read()
@@ -376,6 +421,7 @@ def receive_serial_data(ser):
         receive_encoder_data(ser)
     else:
         rospy.logwarn("Unknown serial byte %b received from Arduino", rec_byte)
+
 
 def receive_encoder_data(ser):
     data_str = ""
@@ -399,10 +445,12 @@ def receive_encoder_data(ser):
     else:
         rospy.logerr("Encoder checksum failure, ignoring message")
 
-def init_subscriber():
+
+def init_subscriber_old():
     rospy.init_node("arduino_communicator_node")
     rospy.Subscriber("rover_target_vel", Twist, rover_target_vel_callback)
     rospy.loginfo("subscribed to rover_target_vel")
+
 
 def init_publisher():
     global encoder_pub
@@ -421,7 +469,7 @@ def encoder_message_from_data(encoder_data):
     # Timestamp is the first element
     arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
     timestamp_ms = (handshake_time * 1000) + arduino_timestamp_ms
-    timestamp_s  = int(timestamp_ms / 1000)
+    timestamp_s = int(timestamp_ms / 1000)
     timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000
     header.stamp.secs = timestamp_s
     header.stamp.nsecs = timestamp_ns
@@ -439,8 +487,8 @@ def encoder_message_from_data(encoder_data):
     encoder_counts.left_wheel_counts = [rf, rm, rr]
     
     # Then the remaining encoders
-    encoder_counts.base_rotation_counts  = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
+    encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
     encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
-    encoder_counts.gripper_counts        = encoder_data[GRIPPER_MOTOR_ENCODER]
+    encoder_counts.gripper_counts = encoder_data[GRIPPER_MOTOR_ENCODER]
     
     return encoder_counts

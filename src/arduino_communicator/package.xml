@@ -2,7 +2,7 @@
 <package format="2">
   <name>arduino_communicator</name>
   <version>0.0.1</version>
-  <description>Sends rover control data to & read encoder data from the integrated Intel Curie board</description>
+  <description>Sends rover control data to and reads encoder data from the integrated Intel Curie board</description>
 
   <maintainer email="carl.heimann@gmail.com">Carl Heimann</maintainer>
 

@@ -7,11 +7,13 @@ import rospy
 
 from geometry_msgs.msg import Twist, Vector3
 
+
 def callback(data):
     global input_data
     input_data = data
 
 cmdvel_pub = rospy.Publisher("/turtle1/cmd_vel", Twist, queue_size=1)
+
 
 input_data = Twist(Vector3(), Vector3())
 

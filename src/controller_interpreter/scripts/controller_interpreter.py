@@ -17,7 +17,7 @@ TEMP_CONTROL_SCHEME_TOGGLE_BUTTON = 8
 TEMP_ACCEL_AXIS = 5
 TEMP_DECEL_AXIS = 2
 TEMP_STEER_AXIS = 0
-TEMP_BOOST_BUTTON = 4
+TEMP_BOOST_BUTTON_DRV = 4
 
 # Rover arm controls - again, temporary until proper control config set up
 TEMP_BASE_ROTATE_AXIS = 0
@@ -28,7 +28,7 @@ TEMP_WRIST_RAISE_BUTTON = 3
 TEMP_WRIST_LOWER_BUTTON = 0
 TEMP_GRIPPER_CLOSE_BUTTON = 2
 TEMP_GRIPPER_OPEN_BUTTON = 1
-TEMP_BOOST_BUTTON = 4
+TEMP_BOOST_BUTTON_ARM = 4
 
 
 # Program constants
@@ -55,7 +55,7 @@ class ControlMapping:
         Thoughts: Two possible control types: single button or +/-. Single buttons only accept
         buttons as commands; +/- can either accept an axis or an ordered pair of buttons. 
         """
-        cmap = {}
+        cmap = dict()
         cmap["rover_drive_forward"] = None
         cmap["rover_drive_backward"] = None
         cmap["rover_drive_steer"] = None
@@ -76,7 +76,7 @@ class ControlMapping:
             if type(cmap[key]) != Control:
                 rospy.logerr("Control %s is of type %s but must be of type %s",
                              key, str(type(key)), str(type(Control)))
-            if cmap[key] == None:
+            if cmap[key] is None:
                 rospy.logwarn("Control %s is unbound", key)
 
         self.mapping = cmap
@@ -115,7 +115,7 @@ def get_commands():
     # Get drive commands from controller inputs (TEMP)
     linear_command, angular_command = temp_drive_interpreter(input_axes, input_buttons)
 
-    ##print("linear: {}, angular: {}".format(linear_command, angular_command))
+    # print("linear: {}, angular: {}".format(linear_command, angular_command))
 
     twist = Twist()
 
@@ -128,8 +128,9 @@ def get_commands():
     gripper = GripperCommand()
 
     gripper.position = 0.0
-    gripper.max_effort = -1 # Negative values are ignored - this should be negative unless a
-                            # gripper force sensor is implemented
+
+    # Negative values are ignored - this should be negative unless a gripper force sensor is implemented
+    gripper.max_effort = -1
 
     return twist, gripper
 
@@ -148,9 +149,7 @@ def temp_drive_interpreter(axes, buttons):
     steer_input = axes[TEMP_STEER_AXIS]
 
     # Input for both
-    boost = buttons[TEMP_BOOST_BUTTON]
-    
-    ##print "Controller inputs [f, b, lr, boost]: ({}, {}, {}, {})".format(forward_input, reverse_input, steer_input, boost)
+    boost = buttons[TEMP_BOOST_BUTTON_DRV]
 
     # linear command should be in [-0.5, 0.5] when boost disabled and
     # in [-1, 1] with it enabled
@@ -174,7 +173,7 @@ def initialise_subscriber():
 def sub_callback(data):
     global most_recent_joy_data
     most_recent_joy_data = data
-    ##print "Received data: " + str(data.axes) + "/" + str(data.buttons)
+    # print "Received data: " + str(data.axes) + "/" + str(data.buttons)
 
 
 if __name__ == "__main__":
