@@ -1,0 +1,15 @@
+<launch>
+
+	<include file="$(find robot_localization)/launch/ekf_template.launch">
+	</include>
+
+	<node pkg="nmea_navsat_driver" name="nmea_serial_driver" type="nmea_serial_driver">
+	</node>
+
+    	<node pkg="rtimulib_ros" type="rtimulib_ros" name="rtimulib_node" output="screen">
+        	<param name="calibration_file_path" value="$(find rtimulib_ros)/config"/>
+        	<param name="calibration_file_name" value="RTIMULib" />
+        	<param name="frame_id" value="imu"/>
+    	</node>
+
+</launch>
