@@ -131,7 +131,7 @@ def prepend_env_variables(environ, env_var_subfolders, workspaces):
     Generate shell code to prepend environment variables
     for the all workspaces.
     '''
-    lines = list()
+    lines = []
     lines.append(comment('prepend folders of workspaces to environment variables'))
 
     paths = [path for path in workspaces.split(os.pathsep) if path]
@@ -200,7 +200,7 @@ def find_env_hooks(environ, cmake_prefix_path):
     Generate shell code with found environment hooks
     for the all workspaces.
     '''
-    lines = list()
+    lines = []
     lines.append(comment('found environment hooks in workspaces'))
 
     generic_env_hooks = []
@@ -262,7 +262,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
         # environment at generation time
-        CMAKE_PREFIX_PATH = '/home/carl/pegasus2/devel;/opt/ros/kinetic'.split(';')
+        CMAKE_PREFIX_PATH = '/opt/ros/kinetic'.split(';')
         # prepend current workspace if not already part of CPP
         base_path = os.path.dirname(__file__)
         if base_path not in CMAKE_PREFIX_PATH:
