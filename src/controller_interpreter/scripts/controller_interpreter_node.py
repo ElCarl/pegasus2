@@ -98,7 +98,7 @@ switch_button_prev_state = 0  # Might this need debouncing?
 
 def interpreter():
     target_vel_pub = rospy.Publisher("rover_target_vel", Twist, queue_size=5)
-    arm_command_pub = rospy.Publisher("arm_command", ArmCommand, queue_size=5)
+    arm_command_pub = rospy.Publisher("rover_arm_commands", ArmCommand, queue_size=5)
     rospy.init_node("command_interpreter")
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
 

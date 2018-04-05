@@ -6,9 +6,9 @@ import time
 import struct
 
 from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Vector3
 from std_msgs.msg import Header
 from arduino_communicator.msg import EncoderCounts
+from controller_interpreter.msg import ArmCommand
 
 # Debug constants
 DEBUG_MODE = False
@@ -30,7 +30,7 @@ DRIVE_MESSAGE_BYTE = b'\xfe'  # FE=254
 END_MESSAGE_BYTE = b'\xff'  # FF=255
 
 # Encoder constants
-N_ENCS = 9
+NUM_ENCODERS = 9
 ENCODER_MESSAGE_TIMEOUT_MS = 50
 L_FRONT_MOTOR_ENCODER = 1
 L_MID_MOTOR_ENCODER = 2
@@ -44,23 +44,15 @@ GRIPPER_MOTOR_ENCODER = 9
 
 handshake_time = 0
 
-last_control_data = Twist()
-last_control_data.linear = Vector3(0, 0, 0)
-last_control_data.angular = Vector3(0, 0, 0)
-
-last_encoder_data = ()
-
 
 class RoverCommand:
     drive_command = None
     arm_command = None
 
     def __init__(self):
-        lin_cmd = Vector3(0, 0, 0)
-        ang_cmd = Vector3(0, 0, 0)
-        self.drive_command = Twist(lin_cmd, ang_cmd)
-        rospy.logerr("arm command update not yet implemented")
-        # TODO add other commands - need to create ROS message
+        # Initialise drive and arm commands with zeros
+        self.drive_command = Twist()
+        self.arm_command = ArmCommand()
 
     def update_drive_command(self, vel_topic_data):
         """
@@ -79,32 +71,50 @@ class RoverCommand:
 
 class RoverController:
     last_command = None
-    motor_controller = None
+    board_interface = None
     rover_command = None
     encoder_publisher = None
 
-    def __init__(self, motor_controller, rover_command):
-        self.motor_controller = motor_controller
+    def __init__(self, board_interface, rover_command):
+        """
+        :param board_interface: the BoardInterface object responsible for communicating with the board
+        :param rover_command: the RoverCommand object containing the most recent rover and arm velocity commands
+        """
+        self.board_interface = board_interface
         self.rover_command = rover_command
-        motor_controller.encoder_callback = self.publish_enc_counts
+        board_interface.encoder_callback = self.publish_enc_counts
         self.command = RoverCommand()
         rospy.loginfo("RoverController instance initialised")
 
     def pass_commands(self):
         """
         Passes the most recent commands from self.rover_command
-        into motor_controller to be sent to the motor_controller
+        into board_interface to be sent to the board_interface
         board
         """
-        lin_vel = self.rover_command.linear.x
-        ang_vel = self.rover_command.angular.z
+        # Rover velocity commands
+        lin_vel = self.rover_command.drive_command.linear.x
+        ang_vel = self.rover_command.drive_command.angular.z
+        # Arm velocity commands
+        base_rot = self.rover_command.arm_command.base_rotation_velocity
+        arm_act_1 = self.rover_command.arm_command.arm_actuator_1_velocity
+        arm_act_2 = self.rover_command.arm_command.arm_actuator_2_velocity
+        wrist_rot = self.rover_command.arm_command.wrist_rotation_velocity
+        wrist_act = self.rover_command.arm_command.wrist_actuator_velocity
+        gripper = self.rover_command.arm_command.gripper_velocity
 
         command_struct = [0]*8
-        # Currently only sets wheel motor data
+
         command_struct[0] = lin_vel
         command_struct[1] = ang_vel
+        command_struct[2] = base_rot
+        command_struct[3] = arm_act_1
+        command_struct[4] = arm_act_2
+        command_struct[5] = wrist_rot
+        command_struct[6] = wrist_act
+        command_struct[7] = gripper
 
-        self.motor_controller.send_commands(command_struct)
+        self.board_interface.send_commands(command_struct)
 
     def publish_enc_counts(self, encoder_data):
         """
@@ -121,7 +131,7 @@ class RoverController:
 
         # Timestamp is the first element
         arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
-        timestamp_ms = (self.motor_controller.handshake_time * 1000) + arduino_timestamp_ms
+        timestamp_ms = (self.board_interface.handshake_time * 1000) + arduino_timestamp_ms
         timestamp_s = int(timestamp_ms / 1000)
         timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000
         header.stamp.secs = timestamp_s
@@ -132,18 +142,18 @@ class RoverController:
         lm = encoder_data[L_MID_MOTOR_ENCODER]
         lr = encoder_data[L_REAR_MOTOR_ENCODER]
         encoder_counts.left_wheel_counts = [lf, lm, lr]
-        
+
         # Right wheel encoders
         rf = encoder_data[R_FRONT_MOTOR_ENCODER]
         rm = encoder_data[R_MID_MOTOR_ENCODER]
         rr = encoder_data[R_REAR_MOTOR_ENCODER]
         encoder_counts.right_wheel_counts = [rf, rm, rr]
-        
+
         # Then the remaining encoders
         encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
         encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
         encoder_counts.gripper_counts = encoder_data[GRIPPER_MOTOR_ENCODER]
-        
+
         # Finally, publish the data
         self.encoder_publisher.publish(encoder_counts)
 
@@ -153,7 +163,7 @@ class RoverController:
         rospy.loginfo("encoder_counts publisher initialised")
 
 
-class MotorController:
+class BoardInterface:
     serial_conn = None
     full_port_name = None
     port_num = None
@@ -204,10 +214,10 @@ class MotorController:
         the struct to receive it on the other device!
         Currently, it is simply 8 bytes:
         lin_vel, ang_vel, base_rotate, actuator_1_move,
-        actuator_2_move, wrist_rotate, actuator_wrist_move, gripper_move
-    
-        A command to control the servo will most likely be added at
-        some point, probably another byte
+        actuator_2_move, wrist_rotate, wrist_actuator_move, gripper_move
+
+        A command to control the camera servo will most likely be added
+        at some point, probably another byte
         """
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         command_data = struct.pack("<8B", *command_struct)
@@ -277,15 +287,15 @@ def main_oop():
 
     # Create & initialise objects
     rover_command = RoverCommand()
-    motor_controller = MotorController()
-    rover_controller = RoverController(motor_controller, rover_command)
+    board_interface = BoardInterface()
+    rover_controller = RoverController(board_interface, rover_command)
 
     # Initialise ROS publishers
     rover_controller.init_publisher()
 
     # Initialise ROS subscribers
     rospy.Subscriber("rover_target_vel", Twist, rover_controller.update_drive_command)
-    # rospy.Subscriber("rover_arm_commands", [___], rover_controller.update_arm_command)
+    rospy.Subscriber("rover_arm_commands", ArmCommand, rover_controller.update_arm_command)
 
     # Set ROS rate
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
@@ -294,11 +304,11 @@ def main_oop():
     try:
         while True:
             rover_controller.pass_commands()
-            motor_controller.read_serial_data()  # Should this also be encapsulated within RoverController?
+            board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
             rate.sleep()
     finally:
         pass
-        # TODO Stop all motors: implement a method in rover_controller/motor_controller
+        # TODO Stop all motors: implement a method in rover_controller/board_interface
             
 
 if __name__ == "__main__":
