@@ -3,7 +3,7 @@
 	<node pkg="arduino_communicator" name="arduino_communicator" type="arduino_communicator_node.py">
 	</node>
 
-	<node pkg="controller_interpreter" name="controller_interpreter" type="controller_interpreter.py">
+	<node pkg="controller_interpreter" name="controller_interpreter" type="controller_interpreter_node.py">
 	</node>
 
 	<node pkg="nmea_navsat_driver" name="nmea_serial_driver" type="nmea_serial_driver">

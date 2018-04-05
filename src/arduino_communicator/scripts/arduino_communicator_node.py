@@ -137,7 +137,7 @@ class RoverController:
         rf = encoder_data[R_FRONT_MOTOR_ENCODER]
         rm = encoder_data[R_MID_MOTOR_ENCODER]
         rr = encoder_data[R_REAR_MOTOR_ENCODER]
-        encoder_counts.left_wheel_counts = [rf, rm, rr]
+        encoder_counts.right_wheel_counts = [rf, rm, rr]
         
         # Then the remaining encoders
         encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
