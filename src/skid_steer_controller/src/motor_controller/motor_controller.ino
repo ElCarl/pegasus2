@@ -1,7 +1,10 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 #include <SoftwareSerial.h>
-#include <SoftEasyTransfer.h>
+
+
+
+// CONSTANTS
 
 // Debug constants
 const bool DEBUG_MODE = 0;
@@ -20,8 +23,8 @@ const uint8_t WHEELS_PER_SIDE = 3;
 const uint8_t N_ENCS = 9;
 
 // PWM constants
-const unsigned int  PWM_FREQUENCY      = 1600;    // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
-const unsigned long PWM_I2C_CLOCKSPEED = 400000;  // I2C "fast" mode @ 400 kHz
+const unsigned int  PWM_BOARD_FREQUENCY      = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
+const unsigned long PWM_I2C_CLOCKSPEED = 400000UL;    // I2C "fast" mode @ 400 kHz
 const uint8_t L_FRONT_MOTOR_PWM        = 0;
 const uint8_t L_MID_MOTOR_PWM          = 1;
 const uint8_t L_REAR_MOTOR_PWM         = 2;
@@ -49,33 +52,22 @@ const byte BEGIN_MESSAGE_BYTE   = 252;
 const byte ARM_MESSAGE_BYTE     = 253;
 const byte DRIVE_MESSAGE_BYTE   = 254;
 const byte END_MESSAGE_BYTE     = 255;
-const uint8_t RX_BUFF_LEN       = 16;
+const uint8_t RX_BUFF_LEN       = 64;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
 const uint8_t PWM_CHANNELS = 16;
 const unsigned int PWM_TICKS = 4096;
 
-// Global variables
-uint32_t enc_count_handshake_time_ms;
-uint32_t handshake_offset_ms;
 
-// Initialise the PWM board object
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// Initialise the software serial
-SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
+// STRUCTS
 
-// Initialise the SoftEasyTransfer object
-SoftEasyTransfer EasyRX;
-
-// Define the SoftEasyTransfer RX data structure
+// Define the RX data structure
 struct ENCODER_DATA_STRUCTURE {
     uint32_t tick_stamp_ms;  // Timestamp of encoder counts in ms since encoder counter arduino started
     int32_t encoder_counts[N_ENCS];
 };
-
-ENCODER_DATA_STRUCTURE encoder_counts_struct;
 
 // Define the rover commands data structure
 struct ROVER_COMMAND_DATA_STRUCTURE {
@@ -89,7 +81,30 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t gripper_velocity;
 };
 
+
+
+// GLOBAL VARIABLES
+
+// Handshake timings
+uint32_t enc_count_handshake_time_ms;
+uint32_t handshake_offset_ms;
+
+// PWM board object
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+
+// Software serial
+SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
+
+// Structs
+ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
+
+
+
+// MAIN PROGRAM CODE
+
+
+// Initialisation code
 
 void setup() {
     // Pin modes
@@ -108,9 +123,6 @@ void setup() {
 
     // Start PWM with all motors stationary
     init_pwm();
-    
-    // Begin SoftEasyTransfer
-    EasyRX.begin(details(encoder_counts_struct), &soft_serial);
     
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
@@ -135,46 +147,52 @@ void setup() {
     enable_motors();
 }
 
-void loop() {
-    // Check if any movement commands have been sent
-    if (Serial.available() > 0) {
-        read_commands();
+void disable_motors() {
+    // This should disable the pin connected to the PWM input of each motor driver.
+    // Since we are using locked antiphase PWM drive for the motors, this will prevent
+    // any current reaching the motors.
+    digitalWrite(MOTOR_ENABLE_PIN, LOW);
+}
 
-        // Wait until the start of a message is found - this ensures that we don't misinterpret a message
-        while (Serial.read() != BEGIN_MESSAGE_BYTE) {}
+void enable_motors() {
+    // Opposite of disable_motors!
+    digitalWrite(MOTOR_ENABLE_PIN, HIGH);
+}
 
-        // Wait until data is available
-        while (Serial.available() == 0) {}
-        
-        // Read in size of message
-        uint8_t size = Serial.read();
-
-        // Wait until all the data is available
-        while (Serial.available() < size) {}
-        
-        // Read the data in to the command struct
-        Serial.readBytes((char*)&rover_command_struct, size);
-
-        // Wait for the end of the message
-        while (Serial.read() != END_MESSAGE_BYTE) {}
-        // TODO Checksum!! Abstract read data to a function, don't change command if
-        // checksum fails!
-        // Set all motor PWM duty cycles
-        set_motor_velocities();
-    }
-    
-    // If we've successfully received data from the encoder counter Uno
-    if (EasyRX.receiveData()) {
-        // Convert timestamp to this processor's reference timeframe
-        encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
-        // Transmit encoder counts to the Braswell chip
-        send_encoder_data();
-        // Probably will also do e.g. speed estimation calcs here? If implementing
-        // PID control of wheels
+void init_pwm() {
+    for (uint8_t pwm_num = 0; pwm_num < PWM_CHANNELS; pwm_num++) {
+        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which stops motors
     }
 }
 
-void read_commands() {
+
+// Loop code
+
+void loop() {
+    // If any movement commands have been sent,
+    if (Serial.available() > 0) {
+        // and if reading them is successful,
+        if (read_commands()) {
+            // then set the motor velocities accordingly.
+            set_motor_velocities();
+        }
+        // Else, leave the velocities as they are.
+    }
+
+    // If any encoder data has been sent,
+    if (soft_serial.available() > 0) {
+        // and if reading them is successful,
+        if (read_encoder_counts()) {
+            // then send the encoder data to the Braswell chip.
+            send_encoder_data();
+        }
+        // Else, do not send the data.
+    }
+}
+
+// TODO: implement a timeout in case of Serial failure
+// Should be short, otherwise the rover will become pretty unresponsive
+bool read_commands() {
     // Could change this to start equal to size, would be a little more robust
     uint8_t checksum = 0;  
     uint8_t rx_buffer[RX_BUFF_LEN];
@@ -182,7 +200,7 @@ void read_commands() {
     // Read until we reach the start of the message
     while (Serial.read() != BEGIN_MESSAGE_BYTE) {}
 
-    // Read to ensure data is available
+    // Check to ensure data is available
     while (Serial.available() == 0) {}
 
     // Read size of message - should not include checksum!
@@ -190,6 +208,7 @@ void read_commands() {
 
     // Read each byte into the buffer
     for (uint8_t b = 0; b < size; b++) {
+        // Wait until data is available. Is this needed, or does it just slow it down?
         while (Serial.available() == 0) {}
         rx_buffer[b] = Serial.read();
         // And calculate the checksum as we go
@@ -200,10 +219,57 @@ void read_commands() {
     if (checksum == Serial.read()) {
         // Copy the data across to the command struct
         memcpy(&rover_command_struct, rx_buffer, size);
+        // Read until the end of the message
+        while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need END_MESSAGE_BYTE
+        // And return true to indicate success
+        return true;
     }
     // Else, ignore the message
+    // And return false to indicate failure
+    return false;
 
-    while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need the END_MESSAGE_BYTE...
+}
+
+// TODO: see above
+// TODO: figure out how to abstract the logic here so that the same function can
+// be used for both Serial and soft_serial reading
+bool read_encoder_counts() {
+    uint8_t checksum;
+    uint8_t rx_buffer[RX_BUFF_LEN];
+
+    // Read until we reach the start of the message
+    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {}
+
+    // Check to ensure data is available
+    while (soft_serial.available() == 0) {}
+
+    // Read size of message, not including checksum
+    uint8_t size = soft_serial.read();
+
+    // Initialise checksum with size
+    checksum = size;
+
+    // Read each byte into the buffer
+    for (uint8_t b = 0; b < size; b++) {
+        // Wait until data is available. Is this needed, or does it just slow it down?
+        while (soft_serial.available() == 0) {}
+        rx_buffer[b] = soft_serial.read();
+        // And calculate the checksum as we go
+        checksum ^= rx_buffer[b];
+    }
+
+    // If the checksum is correct
+    if (checksum == soft_serial.read()) {
+        // Copy the data across to the encoder counts struct
+        memcpy(&encoder_counts_struct, rx_buffer, size);
+        // Read until the end of the message
+        while (soft_serial.read() != END_MESSAGE_BYTE) {}
+        // And return true to indicate success
+        return true;
+    }
+    // Else, ignore the message
+    // And return false to indicate failure
+    return false;
 }
 
 void set_motor_velocities() {
@@ -219,12 +285,6 @@ void set_motor_velocities() {
 
     // Then set arm velocities
     set_arm_velocities();
-}
-
-void init_pwm() {
-    for (uint8_t pwm_num = 0; pwm_num < PWM_CHANNELS; pwm_num++) {
-        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which stops motors
-    }
 }
 
 // Given the desired (normalised) rover target velocity, determine the required
@@ -310,27 +370,19 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 }
 
 
-void disable_motors() {
-    // This should disable the pin connected to the PWM input of each motor driver.
-    // Since we are using locked antiphase PWM drive for the motors, this will prevent
-    // any current reaching the motors.
-    digitalWrite(MOTOR_ENABLE_PIN, LOW);
-}
-
-void enable_motors() {
-    // Opposite of halt_motors!
-    digitalWrite(MOTOR_ENABLE_PIN, HIGH);
-}
-
 void send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
     byte buffer[4];
     uint8_t checksum = 0;
-    
+
+    // Offset the timestamp
+    encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
+
     // Write the timestamp to serial, LSB to MSB
     long_to_bytes(encoder_counts_struct.tick_stamp_ms, buffer);
     for (uint8_t b = 0; b < 4; b++) {
         Serial.write(buffer[b]);
+        // Calculate checksum as we go
         checksum ^= buffer[b];
     }
     // Then each of the encoders, same order
@@ -338,14 +390,14 @@ void send_encoder_data() {
         long_to_bytes(encoder_counts_struct.encoder_counts[encoder], buffer);
         for (uint8_t b = 0; b < 4; b++) {
             Serial.write(buffer[b]);
+            // Calculate checksum as we go
             checksum ^= buffer[b];
         }
     }
     // Then the checksum
-    long_to_bytes(checksum, buffer);
-    for (uint8_t b = 0; b < 4; b++) {
-        Serial.write(buffer[b]);
-    }
+    Serial.write(checksum);
+
+    // Then end the message
     Serial.write(END_MESSAGE_BYTE);
 }
 
@@ -356,3 +408,4 @@ void long_to_bytes(int32_t val, byte bytes[]) {
     bytes[2] = (val >> 16) & 255;
     bytes[3] = (val >> 24) & 255;
 }
+
