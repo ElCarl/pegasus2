@@ -105,14 +105,15 @@ class RoverController:
 
         command_struct = [0]*8
 
-        command_struct[0] = lin_vel
-        command_struct[1] = ang_vel
-        command_struct[2] = base_rot
-        command_struct[3] = arm_act_1
-        command_struct[4] = arm_act_2
-        command_struct[5] = wrist_rot
-        command_struct[6] = wrist_act
-        command_struct[7] = gripper
+        # Scales commands to be between [0,200]
+        command_struct[0] = 100 + (100 * lin_vel)
+        command_struct[1] = 100 + (100 * ang_vel)
+        command_struct[2] = 100 + (100 * base_rot)
+        command_struct[3] = 100 + (100 * arm_act_1)
+        command_struct[4] = 100 + (100 * arm_act_2)
+        command_struct[5] = 100 + (100 * wrist_rot)
+        command_struct[6] = 100 + (100 * wrist_act)
+        command_struct[7] = 100 + (100 * gripper)
 
         self.board_interface.send_commands(command_struct)
 

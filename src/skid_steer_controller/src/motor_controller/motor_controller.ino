@@ -20,16 +20,22 @@ const uint8_t WHEELS_PER_SIDE = 3;
 const uint8_t N_ENCS = 9;
 
 // PWM constants
-const unsigned int  PWM_FREQUENCY      = 1600;    // Max supported freq of current PWM board is 1600 Hz
+const unsigned int  PWM_FREQUENCY      = 1600;    // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;  // I2C "fast" mode @ 400 kHz
-const uint8_t L_FRONT_MOTOR_PWM = 0;
-const uint8_t L_MID_MOTOR_PWM   = 1;
-const uint8_t L_REAR_MOTOR_PWM  = 2;
-const uint8_t R_FRONT_MOTOR_PWM = 3;
-const uint8_t R_MID_MOTOR_PWM   = 4;
-const uint8_t R_REAR_MOTOR_PWM  = 5;
-const uint8_t L_MOTOR_PWM_CHANNELS[] = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
-const uint8_t R_MOTOR_PWM_CHANNELS[] = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
+const uint8_t L_FRONT_MOTOR_PWM        = 0;
+const uint8_t L_MID_MOTOR_PWM          = 1;
+const uint8_t L_REAR_MOTOR_PWM         = 2;
+const uint8_t R_FRONT_MOTOR_PWM        = 3;
+const uint8_t R_MID_MOTOR_PWM          = 4;
+const uint8_t R_REAR_MOTOR_PWM         = 5;
+const uint8_t BASE_ROTATE_MOTOR_PWM    = 6;
+const uint8_t ARM_ACTUATOR_1_PWM       = 7;
+const uint8_t ARM_ACTUATOR_2_PWM       = 8;
+const uint8_t WRIST_ROTATE_MOTOR_PWM   = 9;
+const uint8_t WRIST_ACTUATOR_PWM       = 10;
+const uint8_t GRIPPER_MOTOR_PWM        = 11;
+const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
+const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
 const unsigned long HS_BAUDRATE = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
@@ -43,6 +49,7 @@ const byte BEGIN_MESSAGE_BYTE   = 252;
 const byte ARM_MESSAGE_BYTE     = 253;
 const byte DRIVE_MESSAGE_BYTE   = 254;
 const byte END_MESSAGE_BYTE     = 255;
+const uint8_t RX_BUFF_LEN       = 16;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -63,17 +70,33 @@ SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
 SoftEasyTransfer EasyRX;
 
 // Define the SoftEasyTransfer RX data structure
-struct RECEIVE_DATA_STRUCTURE {
+struct ENCODER_DATA_STRUCTURE {
     uint32_t tick_stamp_ms;  // Timestamp of encoder counts in ms since encoder counter arduino started
     int32_t encoder_counts[N_ENCS];
 };
 
-RECEIVE_DATA_STRUCTURE encoder_counts_struct;
+ENCODER_DATA_STRUCTURE encoder_counts_struct;
+
+// Define the rover commands data structure
+struct ROVER_COMMAND_DATA_STRUCTURE {
+    uint8_t rover_linear_velocity;
+    uint8_t rover_angular_velocity;
+    uint8_t base_rotation_velocity;
+    uint8_t arm_actuator_1_velocity;
+    uint8_t arm_actuator_2_velocity;
+    uint8_t wrist_rotation_velocity;
+    uint8_t wrist_actuator_velocity;
+    uint8_t gripper_velocity;
+};
+
+ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
 void setup() {
     // Pin modes
-    pinMode(LED_BUILTIN, OUTPUT);  // Initialise the Arduino built in LED to allow it to indicate status
+    pinMode(MOTOR_ENABLE_PIN, OUTPUT);
     
+    disable_motors();
+
     // Begin serial connections
     Serial.begin(HS_BAUDRATE);
     soft_serial.begin(SS_BAUDRATE);
@@ -89,75 +112,55 @@ void setup() {
     // Begin SoftEasyTransfer
     EasyRX.begin(details(encoder_counts_struct), &soft_serial);
     
-    // Send the serial ready byte to indicate readiness for data while awaiting readiness confirmation from encoder counter Uno
+    // Send the serial ready byte to indicate readiness for data while awaiting
+    // readiness confirmation from encoder counter Uno
     while (soft_serial.read() != SERIAL_READY_BYTE) {
         soft_serial.write(SERIAL_READY_BYTE);
         delay(100);
-        // May need to implement some way to calibrate for different start times of Arduino boards? Offset in ms between boards?
+        // May need to implement some way to calibrate for different start times
+        // of Arduino boards? Offset in ms between boards?
     }
     
     enc_count_handshake_time_ms = millis();
     
-    // Send the serial ready byte to indicate readiness for data while awaiting readiness confirmation from Braswell chip
+    // Send the serial ready byte to indicate readiness for data while awaiting
+    // readiness confirmation from Braswell chip
     while (Serial.read() != SERIAL_READY_BYTE) {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);
     }
     
     handshake_offset_ms = millis() - enc_count_handshake_time_ms;
+    
+    enable_motors();
 }
 
 void loop() {
     // Check if any movement commands have been sent
     if (Serial.available() > 0) {
-        byte message_type;
+        read_commands();
 
-        if (DEBUG_MODE) { Serial.print("Awaiting BEGIN_MESSAGE_BYTE... "); }
         // Wait until the start of a message is found - this ensures that we don't misinterpret a message
         while (Serial.read() != BEGIN_MESSAGE_BYTE) {}
 
-        if (DEBUG_MODE) { Serial.println("BEGIN_MESSAGE_BYTE received"); }
-
-        if (DEBUG_MODE) { Serial.print("Awaiting message_type byte... "); }
+        // Wait until data is available
         while (Serial.available() == 0) {}
-        message_type = Serial.read();
-        if (DEBUG_MODE) { Serial.print("Message type: "); Serial.println(message_type); }
         
-        // Could rejig this a bit. Instead of worrying about message type on this end, just send all movement commands to this sketch (e.g. linvel, angvel, baserot, wristrot etc.). Simplifies transmission a little, and offloads complexity to the arduino_communicator_node which is easier to debug. Can then more easily send e.g. slow movement commmands while manipulating the arm
+        // Read in size of message
+        uint8_t size = Serial.read();
 
-        if (message_type == ARM_MESSAGE_BYTE) {
-            if (DEBUG_MODE) { Serial.println("ARM_MESSAGE_BYTE received"); }
-            // Not currently implemented
-            // Should probably stop the drive motors when messing with the arm
-            // Random thought for me to come across later: maybe implement the d-pad as a
-            // rough control for the drive (slowed way down e.g. [0,0.1])
-        }
-        else if (message_type == DRIVE_MESSAGE_BYTE) {
-            if (DEBUG_MODE) { Serial.println("DRIVE_MESSAGE_BYTE received"); }
-            byte linear_velocity, angular_velocity;
-            while (Serial.available() < 2) {}
-            linear_velocity = Serial.read();   // Both of these values should be in range [0,200]
-            angular_velocity = Serial.read();  // and must be converted to [-1,1]
+        // Wait until all the data is available
+        while (Serial.available() < size) {}
+        
+        // Read the data in to the command struct
+        Serial.readBytes((char*)&rover_command_struct, size);
 
-            // If the velocities are both in the accepted range
-            if (linear_velocity <= 200 && angular_velocity <= 200) {
-                // Calculate & set the wheel speeds
-                float rover_target_velocity[2];
-                rover_target_velocity[0] = (linear_velocity - 100) / 100.0;
-                rover_target_velocity[1] = (angular_velocity - 100) / 100.0;
-
-                float wheel_speeds[2];
-                get_control_outputs(wheel_speeds, rover_target_velocity);
-
-                set_wheel_speeds(wheel_speeds);
-            }
-            //  If either of the speeds is wrong, we've probably received a command byte by
-            //  mistake - so disregard the message.
-        }
-
-        if (DEBUG_MODE) { Serial.println("Awaiting END_MESSAGE_BYTE"); }
+        // Wait for the end of the message
         while (Serial.read() != END_MESSAGE_BYTE) {}
-        if (DEBUG_MODE) { Serial.println("END_MESSAGE_BYTE received"); }
+        // TODO Checksum!! Abstract read data to a function, don't change command if
+        // checksum fails!
+        // Set all motor PWM duty cycles
+        set_motor_velocities();
     }
     
     // If we've successfully received data from the encoder counter Uno
@@ -166,23 +169,66 @@ void loop() {
         encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
         // Transmit encoder counts to the Braswell chip
         send_encoder_data();
-        // Probably will also do e.g. speed estimation calcs here? If implementing PID control of wheels
+        // Probably will also do e.g. speed estimation calcs here? If implementing
+        // PID control of wheels
     }
+}
+
+void read_commands() {
+    // Could change this to start equal to size, would be a little more robust
+    uint8_t checksum = 0;  
+    uint8_t rx_buffer[RX_BUFF_LEN];
+
+    // Read until we reach the start of the message
+    while (Serial.read() != BEGIN_MESSAGE_BYTE) {}
+
+    // Read to ensure data is available
+    while (Serial.available() == 0) {}
+
+    // Read size of message - should not include checksum!
+    uint8_t size = Serial.read();
+
+    // Read each byte into the buffer
+    for (uint8_t b = 0; b < size; b++) {
+        while (Serial.available() == 0) {}
+        rx_buffer[b] = Serial.read();
+        // And calculate the checksum as we go
+        checksum ^= rx_buffer[b];
+    }
+
+    // If the checksum was correct
+    if (checksum == Serial.read()) {
+        // Copy the data across to the command struct
+        memcpy(&rover_command_struct, rx_buffer, size);
+    }
+    // Else, ignore the message
+
+    while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need the END_MESSAGE_BYTE...
+}
+
+void set_motor_velocities() {
+    // First set rover wheel velocites
+    float rover_target_velocity[2];
+    rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
+    rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
+
+    float wheel_speeds[2];
+
+    get_control_outputs(wheel_speeds, rover_target_velocity);
+    set_wheel_speeds(wheel_speeds);
+
+    // Then set arm velocities
+    set_arm_velocities();
 }
 
 void init_pwm() {
     for (uint8_t pwm_num = 0; pwm_num < PWM_CHANNELS; pwm_num++) {
-        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which should stop motors
+        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which stops motors
     }
 }
 
-/* void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
- *     pwm.setPWM(pwm_num, 0, (int)(duty_cycle * PWM_TICKS));
- * }
- */
-
-// Given the desired (normalised) rover target velocity, determine the required (normalised) velocity for each set of wheels
-// TODO: maybe this should be using integers not floats? Wait to see if speed is a problem first
+// Given the desired (normalised) rover target velocity, determine the required
+// (normalised) velocity for each set of wheels
 void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
     // control_outputs returns the desired motor speed for left and right sides
     // rover_target_velocity should have a linear and an angular velocity component
@@ -222,23 +268,56 @@ void set_wheel_speeds(float wheel_speeds[]) {
         // Left wheel first
         target_wheel_speed = wheel_speeds[0] * L_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
         duty_cycle = 0.5 * (1 + target_wheel_speed);
-        pwm.setPWM(L_MOTOR_PWM_CHANNELS[wheel_num], 0, (PWM_TICKS - 1) * duty_cycle);
+        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
 
         // Then right wheel - negative since they turn opposite to the left wheels
         target_wheel_speed = -1 * wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
         duty_cycle = 0.5 * (1 + target_wheel_speed);
-        pwm.setPWM(R_MOTOR_PWM_CHANNELS[wheel_num], 0, (PWM_TICKS - 1) * duty_cycle);
+        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
     }
 }
 
-void halt_motors() {
+void set_arm_velocities() {
+    float duty_cycle, target_speed;
+    
+    target_speed = rover_command_struct.base_rotation_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
+
+    target_speed = rover_command_struct.arm_actuator_1_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
+
+    target_speed = rover_command_struct.arm_actuator_2_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
+
+    target_speed = rover_command_struct.wrist_rotation_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
+
+    target_speed = rover_command_struct.wrist_actuator_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
+
+    target_speed = rover_command_struct.gripper_velocity * MOTOR_MAX_SPEED;
+    duty_cycle = 0.5 * (1 + target_speed);
+    set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
+}
+
+void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
+    pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
+}
+
+
+void disable_motors() {
     // This should disable the pin connected to the PWM input of each motor driver.
     // Since we are using locked antiphase PWM drive for the motors, this will prevent
     // any current reaching the motors.
     digitalWrite(MOTOR_ENABLE_PIN, LOW);
 }
 
-void start_motors() {
+void enable_motors() {
     // Opposite of halt_motors!
     digitalWrite(MOTOR_ENABLE_PIN, HIGH);
 }
