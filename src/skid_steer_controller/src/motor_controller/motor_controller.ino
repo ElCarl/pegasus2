@@ -194,7 +194,7 @@ void loop() {
 // Should be short, otherwise the rover will become pretty unresponsive
 bool read_commands() {
     // Could change this to start equal to size, would be a little more robust
-    uint8_t checksum = 0;  
+    uint8_t checksum;  
     uint8_t rx_buffer[RX_BUFF_LEN];
 
     // Read until we reach the start of the message
@@ -205,6 +205,9 @@ bool read_commands() {
 
     // Read size of message - should not include checksum!
     uint8_t size = Serial.read();
+
+    // Initialise checksum with size
+    checksum = size;
 
     // Read each byte into the buffer
     for (uint8_t b = 0; b < size; b++) {
@@ -373,10 +376,12 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 void send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
     byte buffer[4];
-    uint8_t checksum = 0;
 
     // Offset the timestamp
     encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
+
+    // Initialise the checksum with the message length
+    uint8_t checksum = sizeof(encoder_counts_struct);
 
     // Write the timestamp to serial, LSB to MSB
     long_to_bytes(encoder_counts_struct.tick_stamp_ms, buffer);

@@ -225,6 +225,9 @@ class BoardInterface:
         # Send struct length - must convert len(command_data) to byte array
         self.serial_conn.write(bytearray((len(command_data),)))
         self.serial_conn.write(command_data)
+        # Send checksum
+        checksum = calc_checksum(command_data)
+        self.serial_conn.write(checksum)
         self.serial_conn.write(END_MESSAGE_BYTE)
 
     def read_serial_data(self):
@@ -253,8 +256,8 @@ class BoardInterface:
         #   9l - nine signed longs (encoder counts)
         #   B  - one unsigned byte, interpreted as an integer (checksum)
         encoder_data = struct.unpack("<L9lB", data_str)
-        checksum = encoder_data[-1]
-        if checksum == calc_checksum(data_str[:-1]):
+        rec_checksum = encoder_data[-1]
+        if rec_checksum == calc_checksum(data_str[:-1]):
             self.encoder_callback(encoder_data)
         else:
             rospy.logerr("Encoder checksum failure, ignoring message")
@@ -269,8 +272,8 @@ def calc_checksum(char_string):
     Calculate a simple checksum of a string of chars/bytes by taking
     the XOR of all of them
     """
-    checksum = 0
     str_len = len(char_string)
+    checksum = str_len
     format_str = "<{}B".format(str_len)
     chars = struct.unpack(format_str, char_string)
     for char in chars:
