@@ -1,6 +1,5 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <SoftwareSerial.h>
 
 
 
@@ -41,18 +40,18 @@ const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const unsigned long HS_BAUDRATE = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
-const unsigned long SS_BAUDRATE = 38400;  // For comms with encoder counter Uno
-const uint8_t SOFTSERIAL_RX_PIN = 2;
-const uint8_t SOFTSERIAL_TX_PIN = 3;
-const unsigned long TIMEOUT_MS  = 5000;   // TODO - actually implement this!
-const byte ENCODER_DATA_BYTE    = 250;
-const byte SERIAL_READY_BYTE    = 251;
-const byte BEGIN_MESSAGE_BYTE   = 252;
-const byte ARM_MESSAGE_BYTE     = 253;
-const byte DRIVE_MESSAGE_BYTE   = 254;
-const byte END_MESSAGE_BYTE     = 255;
-const uint8_t RX_BUFF_LEN       = 64;
+const unsigned long HS_BAUDRATE  = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long BRAS_BAUDRATE = 38400;  // For comms with encoder counter Uno
+const uint8_t SOFTSERIAL_RX_PIN  = 2;
+const uint8_t SOFTSERIAL_TX_PIN  = 3;
+const unsigned long TIMEOUT_MS   = 5000;   // TODO - actually implement this!
+const byte ENCODER_DATA_BYTE     = 250;
+const byte SERIAL_READY_BYTE     = 251;
+const byte BEGIN_MESSAGE_BYTE    = 252;
+const byte ARM_MESSAGE_BYTE      = 253;
+const byte DRIVE_MESSAGE_BYTE    = 254;
+const byte END_MESSAGE_BYTE      = 255;
+const uint8_t RX_BUFF_LEN        = 64;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -92,9 +91,6 @@ uint32_t handshake_offset_ms;
 // PWM board object
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// Software serial
-SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
-
 // Structs
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
@@ -114,7 +110,7 @@ void setup() {
 
     // Begin serial connections
     Serial.begin(HS_BAUDRATE);
-    soft_serial.begin(SS_BAUDRATE);
+    Serial1.begin(BRAS_BAUDRATE);
 
     // Begin PWM
     pwm.begin();
@@ -126,8 +122,8 @@ void setup() {
     
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
-    while (soft_serial.read() != SERIAL_READY_BYTE) {
-        soft_serial.write(SERIAL_READY_BYTE);
+    while (Serial1.read() != SERIAL_READY_BYTE) {
+        Serial1.write(SERIAL_READY_BYTE);
         delay(100);
         // May need to implement some way to calibrate for different start times
         // of Arduino boards? Offset in ms between boards?
@@ -180,7 +176,7 @@ void loop() {
     }
 
     // If any encoder data has been sent,
-    if (soft_serial.available() > 0) {
+    if (Serial1.available() > 0) {
         // and if reading them is successful,
         if (read_encoder_counts()) {
             // then send the encoder data to the Braswell chip.
@@ -235,19 +231,19 @@ bool read_commands() {
 
 // TODO: see above
 // TODO: figure out how to abstract the logic here so that the same function can
-// be used for both Serial and soft_serial reading
+// be used for both Serial and Serial1 reading
 bool read_encoder_counts() {
     uint8_t checksum;
     uint8_t rx_buffer[RX_BUFF_LEN];
 
     // Read until we reach the start of the message
-    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {}
+    while (Serial1.read() != BEGIN_MESSAGE_BYTE) {}
 
     // Check to ensure data is available
-    while (soft_serial.available() == 0) {}
+    while (Serial1.available() == 0) {}
 
     // Read size of message, not including checksum
-    uint8_t size = soft_serial.read();
+    uint8_t size = Serial1.read();
 
     // Initialise checksum with size
     checksum = size;
@@ -255,18 +251,18 @@ bool read_encoder_counts() {
     // Read each byte into the buffer
     for (uint8_t b = 0; b < size; b++) {
         // Wait until data is available. Is this needed, or does it just slow it down?
-        while (soft_serial.available() == 0) {}
-        rx_buffer[b] = soft_serial.read();
+        while (Serial1.available() == 0) {}
+        rx_buffer[b] = Serial1.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
     }
 
     // If the checksum is correct
-    if (checksum == soft_serial.read()) {
+    if (checksum == Serial1.read()) {
         // Copy the data across to the encoder counts struct
         memcpy(&encoder_counts_struct, rx_buffer, size);
         // Read until the end of the message
-        while (soft_serial.read() != END_MESSAGE_BYTE) {}
+        while (Serial1.read() != END_MESSAGE_BYTE) {}
         // And return true to indicate success
         return true;
     }

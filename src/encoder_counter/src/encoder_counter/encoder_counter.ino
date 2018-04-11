@@ -67,6 +67,7 @@ void loop() {
         // multiply by 1000 to change from s to ms. Multiplication faster than
         // division, at the cost of a little clarity.
         transmit_encoder_counts_new();
+        transmissions++;
     }  
 }
 
