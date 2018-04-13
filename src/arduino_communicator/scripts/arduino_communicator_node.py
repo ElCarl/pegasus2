@@ -205,7 +205,6 @@ class BoardInterface:
         connected = False
         while not connected:
             try:
-                rospy.loginfo("Writing")
                 self.serial_conn.write(SERIAL_READY_BYTE)  # May be needed to ensure that this will actually send a ready byte
                 while self.serial_conn.read() != SERIAL_READY_BYTE:
                     print("Ready byte printed")
