@@ -224,7 +224,7 @@ class BoardInterface:
         A command to control the camera servo will most likely be added
         at some point, probably another byte
         """
-        rospy.logdebug("sending commands: %s", " ".join(command_struct))
+        rospy.logdebug("sending commands: %s", " ".join(str(c) for c in command_struct))
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         command_data = struct.pack("<8B", *command_struct)
         # Send struct length - must convert len(command_data) to byte array
