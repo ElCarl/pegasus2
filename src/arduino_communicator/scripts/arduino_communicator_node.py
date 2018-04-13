@@ -238,8 +238,9 @@ class BoardInterface:
         if rec_byte == ENCODER_DATA_BYTE:
             self.read_encoder_data()
         else:
-            rospy.logerr("Unknown serial message type byte %s"
-                         "received from motor controller", rec_byte)
+            val = struct.unpack("b", rec_byte)
+            rospy.logerr("Unknown serial message type byte %d "
+                         "received from motor controller", val)
 
     def read_encoder_data(self):
         data_str = ""
