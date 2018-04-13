@@ -215,7 +215,7 @@ class BoardInterface:
                     time.sleep(0.1)
                 connected = True
             except serial.serialutil.SerialException:
-                pass
+                rospy.logerr("Serial connection error")
         self.handshake_time = time.time()
         rospy.loginfo("Handshake successful")
 
