@@ -6,7 +6,7 @@
 // CONSTANTS
 
 // Debug constants
-const bool DEBUG_MODE = 0;
+const bool DEBUG_MODE = 1;
 
 // Electrical & physical constants
 const float MOTOR_MAX_SPEED = 0.7;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
@@ -42,16 +42,16 @@ const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_
 // Serial constants
 const unsigned long HS_BAUDRATE  = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
 const unsigned long BRAS_BAUDRATE = 38400;  // For comms with encoder counter Uno
-const uint8_t SOFTSERIAL_RX_PIN  = 2;
-const uint8_t SOFTSERIAL_TX_PIN  = 3;
-const unsigned long TIMEOUT_MS   = 5000;   // TODO - actually implement this!
-const byte ENCODER_DATA_BYTE     = 250;
-const byte SERIAL_READY_BYTE     = 251;
-const byte BEGIN_MESSAGE_BYTE    = 252;
-const byte ARM_MESSAGE_BYTE      = 253;
-const byte DRIVE_MESSAGE_BYTE    = 254;
-const byte END_MESSAGE_BYTE      = 255;
-const uint8_t RX_BUFF_LEN        = 64;
+const uint8_t SOFTSERIAL_RX_PIN   = 2;
+const uint8_t SOFTSERIAL_TX_PIN   = 3;
+const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
+const byte ENCODER_DATA_BYTE      = 250;
+const byte SERIAL_READY_BYTE      = 251;
+const byte BEGIN_MESSAGE_BYTE     = 252;
+const byte ARM_MESSAGE_BYTE       = 253;
+const byte DRIVE_MESSAGE_BYTE     = 254;
+const byte END_MESSAGE_BYTE       = 255;
+const uint8_t RX_BUFF_LEN         = 64;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -204,14 +204,14 @@ bool read_commands() {
     // Check to ensure data is available
     while (Serial.available() == 0) {}
 
-    // Read size of message - should not include checksum!
-    uint8_t size = Serial.read();
+    // Read message_length of message - should not include checksum!
+    uint8_t message_length = Serial.read();
 
-    // Initialise checksum with size
-    checksum = size;
+    // Initialise checksum with message_length
+    checksum = message_length;
 
     // Read each byte into the buffer
-    for (uint8_t b = 0; b < size; b++) {
+    for (uint8_t b = 0; b < message_length; b++) {
         // Wait until data is available. Is this needed, or does it just slow it down?
         while (Serial.available() == 0) {}
         rx_buffer[b] = Serial.read();
@@ -222,14 +222,16 @@ bool read_commands() {
     // If the checksum was correct
     if (checksum == Serial.read()) {
         // Copy the data across to the command struct
-        memcpy(&rover_command_struct, rx_buffer, size);
+        memcpy(&rover_command_struct, rx_buffer, message_length);
         // Read until the end of the message
         while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need END_MESSAGE_BYTE
         // And return true to indicate success
+        if (DEBUG_MODE) { Serial.print("Checksum correct"); }
         return true;
     }
     // Else, ignore the message
     // And return false to indicate failure
+    if (DEBUG_MODE) { Serial.print("Checksum incorrect"); }
     return false;
 
 }
@@ -247,14 +249,14 @@ bool read_encoder_counts() {
     // Check to ensure data is available
     while (Serial1.available() == 0) {}
 
-    // Read size of message, not including checksum
-    uint8_t size = Serial1.read();
+    // Read message_length of message, not including checksum
+    uint8_t message_length = Serial1.read();
 
-    // Initialise checksum with size
-    checksum = size;
+    // Initialise checksum with message_length
+    checksum = message_length;
 
     // Read each byte into the buffer
-    for (uint8_t b = 0; b < size; b++) {
+    for (uint8_t b = 0; b < message_length; b++) {
         // Wait until data is available. Is this needed, or does it just slow it down?
         while (Serial1.available() == 0) {}
         rx_buffer[b] = Serial1.read();
@@ -265,7 +267,7 @@ bool read_encoder_counts() {
     // If the checksum is correct
     if (checksum == Serial1.read()) {
         // Copy the data across to the encoder counts struct
-        memcpy(&encoder_counts_struct, rx_buffer, size);
+        memcpy(&encoder_counts_struct, rx_buffer, message_length);
         // Read until the end of the message
         while (Serial1.read() != END_MESSAGE_BYTE) {}
         // And return true to indicate success
