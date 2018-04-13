@@ -227,7 +227,7 @@ class BoardInterface:
         self.serial_conn.write(command_data)
         # Send checksum
         checksum = calc_checksum(command_data)
-        self.serial_conn.write(checksum)
+        self.serial_conn.write(bytearray((checksum,)))
         self.serial_conn.write(END_MESSAGE_BYTE)
 
     def read_serial_data(self):
