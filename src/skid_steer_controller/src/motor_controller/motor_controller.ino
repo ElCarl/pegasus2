@@ -122,6 +122,7 @@ void setup() {
     
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
+    Serial1.write(SERIAL_READY_BYTE);
     while (Serial1.read() != SERIAL_READY_BYTE) {
         Serial1.write(SERIAL_READY_BYTE);
         delay(100);
@@ -133,6 +134,7 @@ void setup() {
     
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from Braswell chip
+    Serial.write(SERIAL_READY_BYTE);
     while (Serial.read() != SERIAL_READY_BYTE) {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);

@@ -40,6 +40,7 @@ void setup() {
     Serial.begin(BAUDRATE);
     
     // Ensure connection to other board
+    Serial.write(SERIAL_READY_BYTE);
     while (Serial.read() != SERIAL_READY_BYTE) {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);

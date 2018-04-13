@@ -195,6 +195,7 @@ class BoardInterface:
                 break
 
     def serial_handshake(self):
+        rospy.loginfo("Attempting serial handshake")
         if not self.serial_conn:
             rospy.logfatal("Not connected to motor controller board!")
             raise RuntimeError("Motor controller board serial connection does not exist")
