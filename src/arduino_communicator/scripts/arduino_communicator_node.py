@@ -231,7 +231,7 @@ class BoardInterface:
         self.serial_conn.write(END_MESSAGE_BYTE)
 
     def read_serial_data(self):
-        if self.serial_conn.in_waiting == 0:
+        if self.serial_conn.inWaiting() == 0:
             return
         # else
         rec_byte = self.serial_conn.read()
