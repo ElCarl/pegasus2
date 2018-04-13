@@ -94,6 +94,7 @@ class RoverController:
         into board_interface to be sent to the board_interface
         board
         """
+        rospy.loginfo("Passing commands")
         # Rover velocity commands
         lin_vel = self.rover_command.drive_command.linear.x
         ang_vel = self.rover_command.drive_command.angular.z
@@ -116,6 +117,8 @@ class RoverController:
         command_struct[5] = 100 + (100 * wrist_rot)
         command_struct[6] = 100 + (100 * wrist_act)
         command_struct[7] = 100 + (100 * gripper)
+
+        rospy.loginfo("Commands of type %s", type(command_struct[0]))
 
         self.board_interface.send_commands(command_struct)
 
@@ -160,7 +163,7 @@ class RoverController:
         # Finally, publish the data
         self.encoder_publisher.publish(encoder_counts)
 
-    def init_publisher(self):
+    def init_encoder_publisher(self):
         self.encoder_publisher = rospy.Publisher("encoder_counts", EncoderCounts,
                                                  queue_size=50)
         rospy.loginfo("encoder_counts publisher initialised")
@@ -231,7 +234,7 @@ class BoardInterface:
         A command to control the camera servo will most likely be added
         at some point, probably another byte
         """
-        rospy.logdebug("sending commands: %s", " ".join(str(c) for c in command_struct))
+        rospy.loginfo("sending commands: %s", " ".join(str(c) for c in command_struct))
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         command_data = struct.pack("<8B", *command_struct)
         # Send struct length - must convert len(command_data) to byte array
@@ -309,11 +312,13 @@ def main_oop():
     rover_controller = RoverController(board_interface, rover_command)
 
     # Initialise ROS publishers
-    rover_controller.init_publisher()
+    rover_controller.init_encoder_publisher()
 
     # Initialise ROS subscribers
     rospy.Subscriber("rover_target_vel", Twist, rover_command.update_drive_command)
     rospy.Subscriber("rover_arm_commands", ArmCommand, rover_command.update_arm_command)
+
+    rospy.loginfo("Subscribers initialised")
 
     # Set ROS rate
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
