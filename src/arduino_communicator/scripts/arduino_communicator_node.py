@@ -202,13 +202,19 @@ class BoardInterface:
             rospy.logfatal("Not connected to motor controller board!")
             raise RuntimeError("Motor controller board serial connection does not exist")
         start_time = time.clock()
-        self.serial_conn.write(SERIAL_READY_BYTE)  # May be needed to ensure that this will actually send a ready byte
-        while self.serial_conn.read() != SERIAL_READY_BYTE:
-            if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
-                rospy.logerr("Handshake timed out")
-                raise RuntimeError("Handshake timed out")
-            self.serial_conn.write(SERIAL_READY_BYTE)
-            time.sleep(0.1)
+        connected = False
+        while not connected:
+            try:
+                self.serial_conn.write(SERIAL_READY_BYTE)  # May be needed to ensure that this will actually send a ready byte
+                while self.serial_conn.read() != SERIAL_READY_BYTE:
+                    if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
+                        rospy.logerr("Handshake timed out")
+                        raise RuntimeError("Handshake timed out")
+                    self.serial_conn.write(SERIAL_READY_BYTE)
+                    time.sleep(0.1)
+                connected = True
+            except serial.serialutil.SerialException:
+                pass
         self.handshake_time = time.time()
         rospy.loginfo("Handshake successful")
 
