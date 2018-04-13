@@ -6,7 +6,7 @@
 // CONSTANTS
 
 // Debug constants
-const bool DEBUG_MODE = 1;
+const bool DEBUG_MODE = 0;
 
 // Electrical & physical constants
 const float MOTOR_MAX_SPEED = 0.7;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
