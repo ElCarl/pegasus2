@@ -120,6 +120,7 @@ void setup() {
     // Start PWM with all motors stationary
     init_pwm();
     
+    /* Disabled to simplify testing
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
     Serial1.write(SERIAL_READY_BYTE);
@@ -129,6 +130,7 @@ void setup() {
         // May need to implement some way to calibrate for different start times
         // of Arduino boards? Offset in ms between boards?
     }
+    */
     
     enc_count_handshake_time_ms = millis();
     
@@ -177,6 +179,7 @@ void loop() {
         // Else, leave the velocities as they are.
     }
 
+    /*
     // If any encoder data has been sent,
     if (Serial1.available() > 0) {
         // and if reading them is successful,
@@ -185,7 +188,7 @@ void loop() {
             send_encoder_data();
         }
         // Else, do not send the data.
-    }
+    }*/
 }
 
 // TODO: implement a timeout in case of Serial failure
