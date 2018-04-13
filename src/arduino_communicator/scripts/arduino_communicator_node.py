@@ -94,7 +94,7 @@ class RoverController:
         into board_interface to be sent to the board_interface
         board
         """
-        rospy.loginfo("Passing commands")
+        rospy.logdebug("Passing commands")
         # Rover velocity commands
         lin_vel = self.rover_command.drive_command.linear.x
         ang_vel = self.rover_command.drive_command.angular.z
@@ -118,7 +118,7 @@ class RoverController:
         command_struct[6] = int(100 + (100 * wrist_act))
         command_struct[7] = int(100 + (100 * gripper))
 
-        rospy.loginfo("Commands of type %s", type(command_struct[0]))
+        rospy.logdebug("Commands of type %s", type(command_struct[0]))
 
         self.board_interface.send_commands(command_struct)
 
@@ -234,8 +234,9 @@ class BoardInterface:
         A command to control the camera servo will most likely be added
         at some point, probably another byte
         """
-        rospy.loginfo("sending commands: %s", " ".join(str(c) for c in command_struct))
+        rospy.logdebug("sending commands: %s", " ".join(str(c) for c in command_struct))
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
+        assert(len(command_struct) == 8)
         command_data = struct.pack("<8B", *command_struct)
         # Send struct length - must convert len(command_data) to byte array
         self.serial_conn.write(bytearray((len(command_data),)))
