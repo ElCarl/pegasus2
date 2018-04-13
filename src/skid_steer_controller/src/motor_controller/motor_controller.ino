@@ -110,7 +110,9 @@ void setup() {
 
     // Begin serial connections
     Serial.begin(HS_BAUDRATE);
-    Serial1.begin(BRAS_BAUDRATE);
+    //Serial1.begin(BRAS_BAUDRATE);
+
+    while(!Serial);
 
     // Begin PWM
     pwm.begin();
