@@ -8,3 +8,4 @@ srv_gen/
 .idea/
 *.swp
 *.pyc
+*.bag
