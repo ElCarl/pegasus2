@@ -298,8 +298,8 @@ def main_oop():
     rover_controller.init_publisher()
 
     # Initialise ROS subscribers
-    rospy.Subscriber("rover_target_vel", Twist, rover_controller.update_drive_command)
-    rospy.Subscriber("rover_arm_commands", ArmCommand, rover_controller.update_arm_command)
+    rospy.Subscriber("rover_target_vel", Twist, rover_command.update_drive_command)
+    rospy.Subscriber("rover_arm_commands", ArmCommand, rover_command.update_arm_command)
 
     # Set ROS rate
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
