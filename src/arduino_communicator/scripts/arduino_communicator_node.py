@@ -284,10 +284,10 @@ class BoardInterface:
 
     def echo_message(self):
         start_time = time.time()
-        while self.serial_conn.in_waiting < 12:
+        while self.serial_conn.inWaiting() < 12:
             if time.time() > start_time + 0.05:
                 break
-        echo = self.serial_conn.read(self.serial_conn.in_waiting)
+        echo = self.serial_conn.read(self.serial_conn.inWaiting())
         rospy.loginfo("Echo: %s", [ord(c) for c in echo])
 
 
