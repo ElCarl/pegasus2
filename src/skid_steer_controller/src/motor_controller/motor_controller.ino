@@ -123,18 +123,16 @@ void setup() {
 
     while(!Serial);
 
-    /* Disabled to simplify testing
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
     Serial1.write(SERIAL_READY_BYTE);
     while (Serial1.read() != SERIAL_READY_BYTE) {
         Serial1.write(SERIAL_READY_BYTE);
         delay(100);
-        // May need to implement some way to calibrate for different start times
-        // of Arduino boards? Offset in ms between boards?
     }
-    */
-    
+    Serial.write(END_MESSAGE_BYTE);
+    while (Serial.read() != END_MESSAGE_BYTE) {}
+
     enc_count_handshake_time_ms = millis();
     
     // Send the serial ready byte to indicate readiness for data while awaiting
@@ -184,7 +182,6 @@ void loop() {
         // Else, leave the velocities as they are.
     }
 
-    /*
     // If any encoder data has been sent,
     if (Serial1.available() > 0) {
         // and if reading them is successful,
@@ -193,7 +190,7 @@ void loop() {
             send_encoder_data();
         }
         // Else, do not send the data.
-    }*/
+    }
 }
 
 // TODO: implement a timeout in case of Serial failure
@@ -288,7 +285,7 @@ bool read_encoder_counts() {
 }
 
 void set_motor_velocities() {
-    // First set rover wheel velocites
+    // First set rover wheel velocites, linear then angular
     float rover_target_velocity[2];
     rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
     rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
@@ -308,11 +305,11 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
     // control_outputs returns the desired motor speed for left and right sides
     // rover_target_velocity should have a linear and an angular velocity component
 
-    // Right wheel velocity is sum of linear and angular velocities
-    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-
     // Left wheel velocity is difference of linear and angular velocities
     control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
+
+    // Right wheel velocity is sum of linear and angular velocities
+    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
 
     // Find largest absolute control value
     float max_control;

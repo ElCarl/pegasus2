@@ -45,6 +45,9 @@ void setup() {
         Serial.write(SERIAL_READY_BYTE);
         delay(100);
     }
+    Serial.write(END_MESSAGE_BYTE);
+
+    while (Serial.read() != END_MESSAGE_BYTE) {}
     
     handshake_time_ms = millis();
 }
