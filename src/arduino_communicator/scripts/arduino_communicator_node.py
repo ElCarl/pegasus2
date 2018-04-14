@@ -223,7 +223,7 @@ class BoardInterface:
                 rospy.logerr("Serial connection error")
         self.handshake_time = time.time()
 
-        while self.serial_conn.read() == END_MESSAGE_BYTE:
+        while self.serial_conn.read() != END_MESSAGE_BYTE:
             pass
 
         rospy.loginfo("Handshake successful")
