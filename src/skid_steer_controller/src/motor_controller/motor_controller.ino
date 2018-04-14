@@ -245,7 +245,7 @@ bool read_commands() {
     // Debug: echoing actual & expected checksum
     Serial.write(7); Serial.write(7);
     Serial.write(checksum);
-    Serial.write(6;) Serial.write(6);
+    Serial.write(6); Serial.write(6);
     Serial.write(expected_checksum);
 
     // Else, ignore the message
