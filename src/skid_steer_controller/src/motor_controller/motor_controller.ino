@@ -221,6 +221,7 @@ bool read_commands() {
         checksum ^= rx_buffer[b];
     }
 
+    while (Serial.available() == 0) {}
 
     // If the checksum was correct
     uint8_t expected_checksum = Serial.read();
@@ -266,6 +267,8 @@ bool read_encoder_counts() {
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
     }
+
+    while (Serial1.available() == 0) {}
 
     // If the checksum is correct
     if (checksum == Serial1.read()) {
