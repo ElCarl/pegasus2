@@ -308,11 +308,11 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
     // control_outputs returns the desired motor speed for left and right sides
     // rover_target_velocity should have a linear and an angular velocity component
 
-    // Left wheel velocity is sum of linear and angular velocities
-    control_outputs[0] = -1 * (rover_target_velocity[0] + rover_target_velocity[1]);
+    // Right wheel velocity is sum of linear and angular velocities
+    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
 
-    // Right wheel velocity is the difference between linear and angular velocities
-    control_outputs[1] = rover_target_velocity[0] - rover_target_velocity[1];
+    // Left wheel velocity is difference of linear and angular velocities
+    control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
 
     // Find largest absolute control value
     float max_control;
