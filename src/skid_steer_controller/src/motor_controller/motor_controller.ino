@@ -430,6 +430,6 @@ void long_to_bytes(int32_t val, byte bytes[]) {
 void echo_command_struct() {
     uint8_t struct_len = sizeof(rover_command_struct);
     uint8_t * addr = (uint8_t *) &rover_command_struct;
-    Serial.write(&rover_command_struct, struct_len);
+    Serial.write(addr, struct_len);
 }
 
