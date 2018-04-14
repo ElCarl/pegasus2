@@ -227,6 +227,11 @@ bool read_commands() {
         rx_buffer[b] = Serial.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
+
+        // Debug: echo some stuff
+        Serial.write(8); Serial.write(8);
+        Serial.write(rx_buffer[b]);
+        Serial.write(b);
     }
 
 

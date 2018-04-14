@@ -306,7 +306,6 @@ def calc_checksum(char_string):
     chars = struct.unpack(format_str, char_string)
     for char in chars:
         checksum ^= char
-    rospy.loginfo("Checksum calculated: {}".format(checksum))
     return checksum
 
 
