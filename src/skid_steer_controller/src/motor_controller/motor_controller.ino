@@ -25,10 +25,10 @@ const uint8_t N_ENCS = 9;
 const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000UL;    // I2C "fast" mode @ 400 kHz
 const uint8_t L_FRONT_MOTOR_PWM        = 0;
-const uint8_t L_MID_MOTOR_PWM          = 1;
-const uint8_t L_REAR_MOTOR_PWM         = 2;
-const uint8_t R_FRONT_MOTOR_PWM        = 3;
-const uint8_t R_MID_MOTOR_PWM          = 4;
+const uint8_t L_MID_MOTOR_PWM          = 2;
+const uint8_t L_REAR_MOTOR_PWM         = 4;
+const uint8_t R_FRONT_MOTOR_PWM        = 1;
+const uint8_t R_MID_MOTOR_PWM          = 3;
 const uint8_t R_REAR_MOTOR_PWM         = 5;
 const uint8_t BASE_ROTATE_MOTOR_PWM    = 6;
 const uint8_t ARM_ACTUATOR_1_PWM       = 7;
@@ -345,8 +345,8 @@ void set_wheel_speeds(float wheel_speeds[]) {
         duty_cycle = 0.5 * (1 + target_wheel_speed);
         set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
 
-        // Then right wheel - negative since they turn opposite to the left wheels
-        target_wheel_speed = -1 * wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
+        // Then right wheel
+        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
         duty_cycle = 0.5 * (1 + target_wheel_speed);
         set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
     }
