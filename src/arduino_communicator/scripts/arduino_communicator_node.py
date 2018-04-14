@@ -208,7 +208,8 @@ class BoardInterface:
         connected = False
         while not connected:
             try:
-                self.serial_conn.write(SERIAL_READY_BYTE)  # May be needed to ensure that this will actually send a ready byte
+                # May be needed to ensure that this will actually send a ready byte
+                self.serial_conn.write(SERIAL_READY_BYTE)
                 while self.serial_conn.read() != SERIAL_READY_BYTE:
                     print("Ready byte printed")
                     if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
@@ -257,6 +258,7 @@ class BoardInterface:
             val = struct.unpack("B", rec_byte)[0]
             rospy.logerr("Unknown serial message type byte %d "
                          "received from motor controller", val)
+            self.echo_message()
 
     def read_encoder_data(self):
         data_str = ""
@@ -279,6 +281,14 @@ class BoardInterface:
             rospy.logdebug("encoder message received")
         else:
             rospy.logerr("Encoder checksum failure, ignoring message")
+
+    def echo_message(self):
+        start_time = time.time()
+        while self.serial_conn.in_waiting < 12:
+            if time.time() > start_time + 0.05:
+                break
+        echo = self.serial_conn.read(self.serial_conn.in_waiting)
+        rospy.loginfo("Echo: %s", [ord(c) for c in echo])
 
 
 ##########################
