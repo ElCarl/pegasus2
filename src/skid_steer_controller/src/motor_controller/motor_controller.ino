@@ -22,7 +22,7 @@ const uint8_t WHEELS_PER_SIDE = 3;
 const uint8_t N_ENCS = 9;
 
 // PWM constants
-const unsigned int  PWM_BOARD_FREQUENCY      = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
+const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000UL;    // I2C "fast" mode @ 400 kHz
 const uint8_t L_FRONT_MOTOR_PWM        = 0;
 const uint8_t L_MID_MOTOR_PWM          = 1;
@@ -40,7 +40,7 @@ const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const unsigned long HS_BAUDRATE  = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long HS_BAUDRATE   = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
 const unsigned long BRAS_BAUDRATE = 38400;  // For comms with encoder counter Uno
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
@@ -95,6 +95,9 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
+// Echoing
+uint16_t echo_count  = 0;
+long     echo_period = 2000;
 
 
 // MAIN PROGRAM CODE
@@ -191,6 +194,11 @@ void loop() {
         }
         // Else, do not send the data.
     }*/
+
+    if (echo_count * echo_period < millis()) {
+        echo_command_struct();
+        echo_count++;
+    }
 }
 
 // TODO: implement a timeout in case of Serial failure
@@ -417,5 +425,11 @@ void long_to_bytes(int32_t val, byte bytes[]) {
     bytes[1] = (val >> 8)  & 255;
     bytes[2] = (val >> 16) & 255;
     bytes[3] = (val >> 24) & 255;
+}
+
+void echo_command_struct() {
+    uint8_t struct_len = sizeof(rover_command_struct);
+    uint8_t * addr = (uint8_t *) &rover_command_struct;
+    Serial.write(&rover_command_struct, struct_len);
 }
 
