@@ -244,6 +244,10 @@ bool read_commands() {
         while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need END_MESSAGE_BYTE
         // And return true to indicate success
         if (DEBUG_MODE) { Serial.print("Checksum correct"); }
+
+        // Debug: print checksum correct sequence
+        Serial.write(9); Serial.write(9);
+
         return true;
     }
 
