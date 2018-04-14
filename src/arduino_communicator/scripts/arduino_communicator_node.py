@@ -224,7 +224,8 @@ class BoardInterface:
         self.handshake_time = time.time()
 
         while self.serial_conn.next() == SERIAL_READY_BYTE:
-            self.serial_conn.read()
+            b = self.serial_conn.read()
+            rospy.loginfo("SERIAL_READY_BYTE flushed: %s", b)
 
         rospy.loginfo("Handshake successful")
 
