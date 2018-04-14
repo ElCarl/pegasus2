@@ -111,7 +111,7 @@ void setup() {
 
     // Begin PWM
     pwm.begin();
-    pwm.setPWMFreq(PWM_FREQUENCY);
+    pwm.setPWMFreq(PWM_BOARD_FREQUENCY);
     Wire.setClock(PWM_I2C_CLOCKSPEED);  // Sets the I2C bus speed
 
     // Start PWM with all motors stationary
