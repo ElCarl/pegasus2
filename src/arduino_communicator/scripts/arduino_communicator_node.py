@@ -16,6 +16,7 @@ DEBUG_MODE = False
 # Serial constants
 ARDUINO_PORT_BASE = "/dev/ttyACM"
 BAUDRATE = 38400
+SERIAL_RETRY_LIMIT = 30
 
 # Program constants
 HANDSHAKE_WARNING_MS = 5000
@@ -183,7 +184,7 @@ class BoardInterface:
         self.init_serial()
         self.serial_handshake()
 
-    def init_serial(self, retry_limit=9):
+    def init_serial(self, retry_limit=SERIAL_RETRY_LIMIT):
         while True:
             self.full_port_name = self.base_port_name + str(self.port_num)
             try:
