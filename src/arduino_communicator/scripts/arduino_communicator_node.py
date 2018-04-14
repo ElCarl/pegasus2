@@ -212,7 +212,6 @@ class BoardInterface:
                 # May be needed to ensure that this will actually send a ready byte
                 self.serial_conn.write(SERIAL_READY_BYTE)
                 while self.serial_conn.read() != SERIAL_READY_BYTE:
-                    print("Ready byte printed")
                     if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
                         rospy.logerr("Handshake timed out")
                         raise RuntimeError("Handshake timed out")
