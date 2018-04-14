@@ -106,13 +106,8 @@ void setup() {
     // Pin modes
     pinMode(MOTOR_ENABLE_PIN, OUTPUT);
     
+    // While setting up, ensure motors cannot be used
     disable_motors();
-
-    // Begin serial connections
-    Serial.begin(HS_BAUDRATE);
-    //Serial1.begin(BRAS_BAUDRATE);
-
-    while(!Serial);
 
     // Begin PWM
     pwm.begin();
@@ -121,7 +116,13 @@ void setup() {
 
     // Start PWM with all motors stationary
     init_pwm();
-    
+
+    // Begin serial connections
+    Serial.begin(HS_BAUDRATE);
+    //Serial1.begin(BRAS_BAUDRATE);
+
+    while(!Serial);
+
     /* Disabled to simplify testing
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
@@ -146,6 +147,7 @@ void setup() {
     
     handshake_offset_ms = millis() - enc_count_handshake_time_ms;
     
+    // Once all setup is complete, allow motors to be used
     enable_motors();
 }
 
