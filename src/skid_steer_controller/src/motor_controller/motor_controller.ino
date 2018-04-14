@@ -97,7 +97,7 @@ ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
 // Echoing
 uint16_t echo_count  = 0;
-long     echo_period = 2000;
+uint16_t echo_period = 2000;
 
 
 // MAIN PROGRAM CODE
