@@ -95,9 +95,6 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
-// Echoing
-uint16_t echo_count  = 0;
-uint16_t echo_period = 2000;
 
 
 // MAIN PROGRAM CODE
@@ -194,11 +191,6 @@ void loop() {
         }
         // Else, do not send the data.
     }*/
-
-    if (echo_count * echo_period < millis()) {
-        echo_command_struct();
-        echo_count++;
-    }
 }
 
 // TODO: implement a timeout in case of Serial failure
@@ -227,11 +219,6 @@ bool read_commands() {
         rx_buffer[b] = Serial.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
-
-        // Debug: echo some stuff
-        Serial.write(8); Serial.write(8);
-        Serial.write(rx_buffer[b]);
-        Serial.write(b);
     }
 
 
@@ -243,25 +230,13 @@ bool read_commands() {
         // Read until the end of the message
         while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need END_MESSAGE_BYTE
         // And return true to indicate success
-        if (DEBUG_MODE) { Serial.print("Checksum correct"); }
-
-        // Debug: print checksum correct sequence
-        Serial.write(9); Serial.write(9);
-
         return true;
     }
-
-    // Debug: echoing actual & expected checksum
-    Serial.write(7); Serial.write(7);
-    Serial.write(checksum);
-    Serial.write(6); Serial.write(6);
-    Serial.write(expected_checksum);
 
     // Else, ignore the message
     // And return false to indicate failure
     if (DEBUG_MODE) { Serial.print("Checksum incorrect"); }
     return false;
-
 }
 
 // TODO: see above
@@ -443,12 +418,5 @@ void long_to_bytes(int32_t val, byte bytes[]) {
     bytes[1] = (val >> 8)  & 255;
     bytes[2] = (val >> 16) & 255;
     bytes[3] = (val >> 24) & 255;
-}
-
-void echo_command_struct() {
-    uint8_t struct_len = sizeof(rover_command_struct);
-    uint8_t * addr = (uint8_t *) &rover_command_struct;
-    Serial.write(struct_len);
-    Serial.write(addr, struct_len);
 }
 
