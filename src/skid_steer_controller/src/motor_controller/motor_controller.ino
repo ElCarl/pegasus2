@@ -6,7 +6,7 @@
 // CONSTANTS
 
 // Debug constants
-const bool DEBUG_MODE = 1;
+const bool DEBUG_MODE = 0;
 
 // Electrical & physical constants
 const float MOTOR_MAX_SPEED = 0.7;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
@@ -229,8 +229,10 @@ bool read_commands() {
         checksum ^= rx_buffer[b];
     }
 
+
     // If the checksum was correct
-    if (checksum == Serial.read()) {
+    uint8_t expected_checksum = Serial.read();
+    if (checksum == expected_checksum) {
         // Copy the data across to the command struct
         memcpy(&rover_command_struct, rx_buffer, message_length);
         // Read until the end of the message
@@ -239,6 +241,13 @@ bool read_commands() {
         if (DEBUG_MODE) { Serial.print("Checksum correct"); }
         return true;
     }
+
+    // Debug: echoing actual & expected checksum
+    Serial.write(7); Serial.write(7);
+    Serial.write(checksum);
+    Serial.write(6;) Serial.write(6);
+    Serial.write(expected_checksum);
+
     // Else, ignore the message
     // And return false to indicate failure
     if (DEBUG_MODE) { Serial.print("Checksum incorrect"); }
