@@ -170,7 +170,7 @@ void loop() {
         // Else, leave the velocities as they are.
     }
 
-    if (!Serial1) { Serial.write((byte)7); Serial.write((byte)6); }
+    if (Serial1) { Serial.write((byte)7); Serial.write((byte)6); }
 
     // If any encoder data has been sent,
     if (Serial1.available() > 0) {
