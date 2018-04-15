@@ -10,7 +10,6 @@ const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 
 const unsigned long BAUDRATE = 57600UL;
 const unsigned long TRANSMIT_FREQUENCY = 10;  // How frequently to send the encoder counts
 const byte BEGIN_MESSAGE_BYTE = 252;
-const byte END_MESSAGE_BYTE   = 255;
 
 // Global variables
 uint8_t pin_states[]  = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
