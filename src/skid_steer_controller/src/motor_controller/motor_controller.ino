@@ -146,6 +146,7 @@ void setup() {
     Serial.write((byte)0); Serial.write((byte)0);
     Serial.write(END_MESSAGE_BYTE);
     while (Serial.read() != END_MESSAGE_BYTE) {}
+    Serial.write((byte)1); Serial.write((byte)2);
 
     handshake_offset_ms = millis() - enc_count_handshake_time_ms;
     
