@@ -278,13 +278,17 @@ class BoardInterface:
         #   L  - one unsigned long (timestamp)
         #   9l - nine signed longs (encoder counts)
         #   B  - one unsigned byte, interpreted as an integer (checksum)
-        encoder_data = struct.unpack("<L9lB", data_str)
-        rec_checksum = encoder_data[-1]
-        if rec_checksum == calc_checksum(data_str[:-1]):
-            self.encoder_callback(encoder_data)
-            rospy.loginfo_throttle(2, "encoder message received")
+        try:
+            encoder_data = struct.unpack("<L9lB", data_str)
+        except struct.error:
+            rospy.logerr("read_encoder_data error in struct unpack. Message: %s", data_str)
         else:
-            rospy.logerr("Encoder checksum failure, ignoring message")
+            rec_checksum = encoder_data[-1]
+            if rec_checksum == calc_checksum(data_str[:-1]):
+                self.encoder_callback(encoder_data)
+                rospy.logdebug_throttle(2, "encoder message received")
+            else:
+                rospy.logerr("Encoder checksum failure, ignoring message")
 
     def echo_message(self):
         start_time = time.time()
@@ -343,7 +347,6 @@ def main_oop():
         while True:
             rover_controller.pass_commands()
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
-            rospy.loginfo_throttle(5, "Main loop executing")
             rate.sleep()
     finally:
         pass
