@@ -180,10 +180,6 @@ void loop() {
             // then send the encoder data to the Braswell chip.
             send_encoder_data();
         }
-        // Send some bytes to indicate something's been read
-        Serial.write((byte)9);
-        Serial.write((byte)1);
-        Serial.write((byte)1);
         // Else, do not send the data.
     }
 }
