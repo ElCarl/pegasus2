@@ -137,13 +137,13 @@ void setup() {
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
     Serial1.write(SERIAL_READY_BYTE);
-    Serial.write(9); Serial.write(9);  // Temporary debugging code
+    Serial.write((byte)9); Serial.write((byte)9);  // Temporary debugging code
     while (Serial1.read() != SERIAL_READY_BYTE) {
         Serial1.write(SERIAL_READY_BYTE);
         delay(100);
-        Serial.write(5);
+        Serial.write((byte)5);
     }
-    Serial.write(0); Serial.write(0);
+    Serial.write((byte)0); Serial.write((byte)0);
     Serial.write(END_MESSAGE_BYTE);
     while (Serial.read() != END_MESSAGE_BYTE) {}
 
