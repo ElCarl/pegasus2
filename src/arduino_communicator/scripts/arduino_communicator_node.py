@@ -343,10 +343,12 @@ def main_oop():
         while True:
             rover_controller.pass_commands()
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
+            rospy.loginfo_throttle(5, "Main loop executing")
             rate.sleep()
     finally:
         pass
         # TODO Stop all motors: implement a method in rover_controller/board_interface
+        # TODO release serial object
             
 
 if __name__ == "__main__":
