@@ -243,12 +243,12 @@ class BoardInterface:
         at some point, probably another byte
         """
         rospy.logdebug_throttle(2, "sending commands: {}".format(" ".join(str(c) for c in command_struct)))
-        self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         assert(len(command_struct) == 8)
         command_data = struct.pack("<8B", *command_struct)
         checksum = calc_checksum(command_data)
 
         try:
+            self.serial_conn.write(BEGIN_MESSAGE_BYTE)
             # Send struct length - must convert len(command_data) to byte array
             self.serial_conn.write(bytearray((len(command_data),)))
             self.serial_conn.write(command_data)
