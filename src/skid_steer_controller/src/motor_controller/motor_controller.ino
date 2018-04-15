@@ -376,33 +376,26 @@ void send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
     byte buffer[4];
 
+    uint8_t struct_len = sizeof(encoder_counts_struct);
+
     // Set the timestamp
     encoder_counts_struct.tick_stamp_ms = millis();
 
     // Initialise the checksum with the message length
-    uint8_t checksum = sizeof(encoder_counts_struct);
+    uint8_t checksum = struct_len;
 
-    // Write the timestamp to serial, LSB to MSB
-    long_to_bytes(encoder_counts_struct.tick_stamp_ms, buffer);
-    for (uint8_t b = 0; b < 4; b++) {
-        Serial.write(buffer[b]);
-        // Calculate checksum as we go
-        checksum ^= buffer[b];
+    // Send the message length
+    Serial.write(struct_len);
+
+    // Write the whole struct to serial, calculating checksum as we go
+    uint8_t * struct_ptr = (uint8_t *)&encoder_counts_struct;
+    for (uint8_t b = 0; b < struct_len; b++) {
+        Serial.write(*(struct_ptr + b));
+        checksum ^= *(struct_ptr + b);
     }
-    // Then each of the encoders, same order
-    for (uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
-        long_to_bytes(encoder_counts_struct.encoder_counts[encoder], buffer);
-        for (uint8_t b = 0; b < 4; b++) {
-            Serial.write(buffer[b]);
-            // Calculate checksum as we go
-            checksum ^= buffer[b];
-        }
-    }
-    // Then the checksum
+
+    // Then write the checksum
     Serial.write(checksum);
-
-    // Then end the message
-    Serial.write(END_MESSAGE_BYTE);
 }
 
 // Converts a long to an array of 4 bytes for serial transmission

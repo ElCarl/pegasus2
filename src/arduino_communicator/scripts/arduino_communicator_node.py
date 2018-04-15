@@ -265,30 +265,30 @@ class BoardInterface:
             self.echo_message()
 
     def read_encoder_data(self):
-        data_str = ""
-        while True:
-            rec_byte = self.serial_conn.read()
-            if rec_byte != END_MESSAGE_BYTE:
-                data_str += rec_byte
-            else:
-                break
+        try:
+            struct_len = self.serial_conn.read()
+            data_str = self.serial_conn.read(struct_len)
+            rec_checksum = self.serial_conn.read()
+        except serial.SerialTimeoutException:
+            rospy.logerr("Serial timeout awaiting encoder data")
+            return False
+
         # Use the Python struct library to interpret the data
         # '<' enforces little-endianness
         # L9lB means:
         #   L  - one unsigned long (timestamp)
         #   9l - nine signed longs (encoder counts)
-        #   B  - one unsigned byte, interpreted as an integer (checksum)
         try:
-            encoder_data = struct.unpack("<L9lB", data_str)
+            encoder_data = struct.unpack("<L9l", data_str)
         except struct.error:
             rospy.logerr("read_encoder_data error in struct unpack. Message: %s", data_str)
+            return False
+
+        if rec_checksum == calc_checksum(data_str):
+            self.encoder_callback(encoder_data)
+            rospy.logdebug_throttle(2, "encoder message received")
         else:
-            rec_checksum = encoder_data[-1]
-            if rec_checksum == calc_checksum(data_str[:-1]):
-                self.encoder_callback(encoder_data)
-                rospy.logdebug_throttle(2, "encoder message received")
-            else:
-                rospy.logerr("Encoder checksum failure, ignoring message")
+            rospy.logerr("Encoder checksum failure, ignoring message")
 
     def echo_message(self):
         start_time = time.time()
