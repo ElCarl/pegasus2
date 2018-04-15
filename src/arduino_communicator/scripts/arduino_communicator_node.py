@@ -268,7 +268,7 @@ class BoardInterface:
         try:
             struct_len = ord(self.serial_conn.read())
             data_str = self.serial_conn.read(struct_len)
-            rec_checksum = self.serial_conn.read()
+            rec_checksum = ord(self.serial_conn.read())
         except serial.SerialTimeoutException:
             rospy.logerr("Serial timeout awaiting encoder data")
             return False
