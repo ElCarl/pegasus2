@@ -40,8 +40,8 @@ const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const unsigned long HS_BAUDRATE   = 38400;  // For comms with the Braswell chip (arduino_communicator_node)
-const unsigned long BRAS_BAUDRATE = 38400;  // For comms with encoder counter Uno
+const unsigned long BRAS_BAUDRATE = 38400UL;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long ENC_BAUDRATE  = 38400UL;  // For comms with encoder counter Uno
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
 const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
@@ -118,8 +118,8 @@ void setup() {
     init_pwm();
 
     // Begin serial connections
-    Serial.begin(HS_BAUDRATE);
-    Serial1.begin(BRAS_BAUDRATE);
+    Serial.begin(BRAS_BAUDRATE);
+    Serial1.begin(ENC_BAUDRATE);
 
     while(!Serial);
 
@@ -170,8 +170,6 @@ void loop() {
         // Else, leave the velocities as they are.
     }
 
-    if (Serial1) { Serial.write((byte)7); Serial.write((byte)6); }
-
     // If any encoder data has been sent,
     if (Serial1.available() > 0) {
         // and if reading them is successful,
@@ -179,6 +177,7 @@ void loop() {
             // then send the encoder data to the Braswell chip.
             send_encoder_data();
         }
+        // Send some bytes to indicate something's been read
         Serial.write((byte)9);
         Serial.write((byte)1);
         Serial.write((byte)1);
