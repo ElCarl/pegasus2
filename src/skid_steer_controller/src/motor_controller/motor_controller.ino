@@ -124,6 +124,17 @@ void setup() {
     while(!Serial);
 
     // Send the serial ready byte to indicate readiness for data while awaiting
+    // readiness confirmation from Braswell chip
+    Serial.write(SERIAL_READY_BYTE);
+    while (Serial.read() != SERIAL_READY_BYTE) {
+        Serial.write(SERIAL_READY_BYTE);
+        delay(100);
+    }
+    Serial.write(END_MESSAGE_BYTE);
+    
+    enc_count_handshake_time_ms = millis();
+
+    // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from encoder counter Uno
     Serial1.write(SERIAL_READY_BYTE);
     while (Serial1.read() != SERIAL_READY_BYTE) {
@@ -133,17 +144,6 @@ void setup() {
     Serial.write(END_MESSAGE_BYTE);
     while (Serial.read() != END_MESSAGE_BYTE) {}
 
-    enc_count_handshake_time_ms = millis();
-    
-    // Send the serial ready byte to indicate readiness for data while awaiting
-    // readiness confirmation from Braswell chip
-    Serial.write(SERIAL_READY_BYTE);
-    while (Serial.read() != SERIAL_READY_BYTE) {
-        Serial.write(SERIAL_READY_BYTE);
-        delay(100);
-    }
-    Serial.write(END_MESSAGE_BYTE);
-    
     handshake_offset_ms = millis() - enc_count_handshake_time_ms;
     
     // Once all setup is complete, allow motors to be used
