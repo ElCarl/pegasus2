@@ -17,6 +17,8 @@ DEBUG_MODE = False
 ARDUINO_PORT_BASE = "/dev/ttyACM"
 BAUDRATE = 38400
 SERIAL_RETRY_LIMIT = 30
+READ_TIMEOUT_S = 0.01
+WRITE_TIMEOUT_S = 0.01
 
 # Program constants
 HANDSHAKE_WARNING_MS = 5000
@@ -188,7 +190,8 @@ class BoardInterface:
         while True:
             self.full_port_name = self.base_port_name + str(self.port_num)
             try:
-                self.serial_conn = serial.Serial(self.full_port_name, self.baudrate)
+                self.serial_conn = serial.Serial(self.full_port_name, self.baudrate,
+                                                 timeout=READ_TIMEOUT_S, write_timeout=WRITE_TIMEOUT_S)
             except OSError:
                 rospy.logwarn("Arduino not found at %s, trying next", self.full_port_name)
                 self.port_num += 1
