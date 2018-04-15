@@ -7,7 +7,7 @@ const uint8_t INPUT_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 14, 17
 const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
 // Serial communication constants
-const unsigned long BAUDRATE = 9600UL;
+const unsigned long BAUDRATE = 57600UL;
 const unsigned long TRANSMIT_FREQUENCY = 10;  // How frequently to send the encoder counts
 const byte BEGIN_MESSAGE_BYTE = 252;
 const byte END_MESSAGE_BYTE   = 255;

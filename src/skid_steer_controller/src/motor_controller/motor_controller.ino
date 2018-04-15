@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <SoftwareSerial.h>
 
 
 
@@ -41,7 +42,7 @@ const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_
 
 // Serial constants
 const unsigned long BRAS_BAUDRATE = 38400UL;  // For comms with the Braswell chip (arduino_communicator_node)
-const unsigned long ENC_BAUDRATE  = 9600UL;  // For comms with encoder counter Uno
+const unsigned long ENC_BAUDRATE  = 57600UL;  // For comms with encoder counter Uno
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
 const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
@@ -95,6 +96,9 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
+// SoftwareSerial
+SoftwareSerial soft_serial(2, 3);
+
 
 
 // MAIN PROGRAM CODE
@@ -119,7 +123,7 @@ void setup() {
 
     // Begin serial connections
     Serial.begin(BRAS_BAUDRATE);
-    Serial1.begin(ENC_BAUDRATE);
+    soft_serial.begin(ENC_BAUDRATE);
 
     while(!Serial);
 
@@ -171,7 +175,7 @@ void loop() {
     }
 
     // If any encoder data has been sent,
-    if (Serial1.available() > 0) {
+    if (soft_serial.available() > 0) {
         // and if reading them is successful,
         if (read_encoder_counts()) {
             // then send the encoder data to the Braswell chip.
@@ -234,19 +238,19 @@ bool read_commands() {
 
 // TODO: see above
 // TODO: figure out how to abstract the logic here so that the same function can
-// be used for both Serial and Serial1 reading
+// be used for both Serial and soft_serial reading
 bool read_encoder_counts() {
     uint8_t checksum;
     uint8_t rx_buffer[RX_BUFF_LEN];
 
     // Read until we reach the start of the message
-    while (Serial1.read() != BEGIN_MESSAGE_BYTE) {}
+    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {}
 
     // Check to ensure data is available
-    while (Serial1.available() == 0) {}
+    while (soft_serial.available() == 0) {}
 
     // Read message_length of message, not including checksum
-    uint8_t message_length = Serial1.read();
+    uint8_t message_length = soft_serial.read();
 
     // Initialise checksum with message_length
     checksum = message_length;
@@ -254,20 +258,20 @@ bool read_encoder_counts() {
     // Read each byte into the buffer
     for (uint8_t b = 0; b < message_length; b++) {
         // Wait until data is available. Is this needed, or does it just slow it down?
-        while (Serial1.available() == 0) {}
-        rx_buffer[b] = Serial1.read();
+        while (soft_serial.available() == 0) {}
+        rx_buffer[b] = soft_serial.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
     }
 
-    while (Serial1.available() == 0) {}
+    while (soft_serial.available() == 0) {}
 
     // If the checksum is correct
-    if (checksum == Serial1.read()) {
+    if (checksum == soft_serial.read()) {
         // Copy the data across to the encoder counts struct
         memcpy(&encoder_counts_struct, rx_buffer, message_length);
         // Read until the end of the message
-        while (Serial1.read() != END_MESSAGE_BYTE) {}
+        while (soft_serial.read() != END_MESSAGE_BYTE) {}
         // And return true to indicate success
         return true;
     }
