@@ -282,7 +282,7 @@ class BoardInterface:
         rec_checksum = encoder_data[-1]
         if rec_checksum == calc_checksum(data_str[:-1]):
             self.encoder_callback(encoder_data)
-            rospy.logdebug("encoder message received")
+            rospy.loginfo_throttle(2, "encoder message received")
         else:
             rospy.logerr("Encoder checksum failure, ignoring message")
 
