@@ -266,7 +266,7 @@ class BoardInterface:
 
     def read_encoder_data(self):
         try:
-            struct_len = self.serial_conn.read()
+            struct_len = ord(self.serial_conn.read())
             data_str = self.serial_conn.read(struct_len)
             rec_checksum = self.serial_conn.read()
         except serial.SerialTimeoutException:

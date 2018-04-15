@@ -374,7 +374,6 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 
 void send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
-    byte buffer[4];
 
     uint8_t struct_len = sizeof(encoder_counts_struct);
 
