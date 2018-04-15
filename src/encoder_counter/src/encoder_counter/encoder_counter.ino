@@ -9,7 +9,6 @@ const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 
 // Serial communication constants
 const unsigned long BAUDRATE = 38400UL;
 const unsigned long TRANSMIT_FREQUENCY = 10;  // How frequently to send the encoder counts
-const byte SERIAL_READY_BYTE  = 251;
 const byte BEGIN_MESSAGE_BYTE = 252;
 const byte END_MESSAGE_BYTE   = 255;
 
@@ -38,17 +37,6 @@ void setup() {
     
     // Begin serial connection
     Serial.begin(BAUDRATE);
-    
-    // Ensure connection to other board
-    Serial.write(SERIAL_READY_BYTE);
-    while (Serial.read() != SERIAL_READY_BYTE) {
-        Serial.write(SERIAL_READY_BYTE);
-        delay(100);
-    }
-    Serial.write(END_MESSAGE_BYTE);
-    while (Serial.read() != END_MESSAGE_BYTE) {}
-    
-    handshake_time_ms = millis();
 }
 
 void loop() {

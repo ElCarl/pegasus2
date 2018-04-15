@@ -134,22 +134,6 @@ void setup() {
     
     enc_count_handshake_time_ms = millis();
 
-    // Send the serial ready byte to indicate readiness for data while awaiting
-    // readiness confirmation from encoder counter Uno
-    Serial1.write(SERIAL_READY_BYTE);
-    Serial.write((byte)9); Serial.write((byte)9);  // Temporary debugging code
-    while (Serial1.read() != SERIAL_READY_BYTE) {
-        Serial1.write(SERIAL_READY_BYTE);
-        delay(100);
-        Serial.write((byte)5);
-    }
-    Serial.write((byte)0); Serial.write((byte)0);
-    Serial.write(END_MESSAGE_BYTE);
-    while (Serial.read() != END_MESSAGE_BYTE) {}
-    Serial.write((byte)1); Serial.write((byte)2);
-
-    handshake_offset_ms = millis() - enc_count_handshake_time_ms;
-    
     // Once all setup is complete, allow motors to be used
     enable_motors();
 }
@@ -385,13 +369,12 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
     pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
 }
 
-
 void send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
     byte buffer[4];
 
-    // Offset the timestamp
-    encoder_counts_struct.tick_stamp_ms -= handshake_offset_ms;
+    // Set the timestamp
+    encoder_counts_struct.tick_stamp_ms = millis();
 
     // Initialise the checksum with the message length
     uint8_t checksum = sizeof(encoder_counts_struct);
