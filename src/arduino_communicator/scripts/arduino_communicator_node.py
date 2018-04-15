@@ -38,12 +38,12 @@ ENCODER_MESSAGE_TIMEOUT_MS = 50
 L_FRONT_MOTOR_ENCODER = 1
 L_MID_MOTOR_ENCODER = 2
 L_REAR_MOTOR_ENCODER = 3
-R_FRONT_MOTOR_ENCODER = 4
-R_MID_MOTOR_ENCODER = 5
-R_REAR_MOTOR_ENCODER = 6
-BASE_ROTATE_MOTOR_ENCODER = 7
-WRIST_ROTATE_MOTOR_ENCODER = 8
-GRIPPER_MOTOR_ENCODER = 9
+R_FRONT_MOTOR_ENCODER = 9
+R_MID_MOTOR_ENCODER = 8
+R_REAR_MOTOR_ENCODER = 7
+BASE_ROTATE_MOTOR_ENCODER = 4
+WRIST_ROTATE_MOTOR_ENCODER = 5
+GRIPPER_MOTOR_ENCODER = 6
 
 handshake_time = 0
 
@@ -254,7 +254,6 @@ class BoardInterface:
             self.serial_conn.write(command_data)
             # Send checksum
             self.serial_conn.write(bytearray((checksum,)))  # Regularly times out here!
-            self.serial_conn.write(END_MESSAGE_BYTE)
         except serial.SerialTimeoutException:
             rospy.logerr("Serial write timeout")
             # Just pass for now, ignoring this attempt and trying again

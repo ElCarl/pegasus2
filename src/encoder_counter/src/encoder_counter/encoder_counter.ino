@@ -29,6 +29,8 @@ ENCODER_DATA_STRUCTURE encoder_counts_struct;
 
 uint32_t handshake_time_ms;
 
+uint8_t struct_len = sizeof(encoder_counts_struct);
+
 void setup() {
     // Pin modes
     for (uint8_t pin = 0; pin < N_PINS; pin++) {
@@ -54,7 +56,8 @@ void loop() {
     // Checks to see if the encoder counts should be transmitted. Compares number
     // of actual transmissions to number of expected transmissions; if it has
     // transmitted fewer than expected, then it will transmit.
-    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY) {
+    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY
+        && Serial.availableForWrite() >= struct_len + 4) {
         // multiply by 1000 to change from s to ms. Multiplication faster than
         // division, at the cost of a little clarity.
         transmit_encoder_counts_new();
@@ -70,7 +73,6 @@ void encoder_pin_change(uint8_t encoder) {
 
 void transmit_encoder_counts_new() {
     uint8_t send_byte;
-    uint8_t struct_len = sizeof(encoder_counts_struct);
     uint8_t checksum = struct_len;
     uint8_t * struct_addr = (uint8_t*)&encoder_counts_struct;
 
@@ -95,8 +97,5 @@ void transmit_encoder_counts_new() {
 
     // Send checksum
     Serial.write(checksum);
-
-    // End message
-    Serial.write(END_MESSAGE_BYTE);
 }
 

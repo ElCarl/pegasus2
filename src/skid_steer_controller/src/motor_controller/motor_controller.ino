@@ -210,15 +210,14 @@ bool read_commands() {
         checksum ^= rx_buffer[b];
     }
 
-    while (Serial.available() == 0) {}
+    // Disabled as I'm suspicious it may be the cause of some deadlocks
+    //while (Serial.available() == 0) {}
 
     // If the checksum was correct
     uint8_t expected_checksum = Serial.read();
     if (checksum == expected_checksum) {
         // Copy the data across to the command struct
         memcpy(&rover_command_struct, rx_buffer, message_length);
-        // Read until the end of the message
-        while (Serial.read() != END_MESSAGE_BYTE) {}  // Probably don't need END_MESSAGE_BYTE
         // And return true to indicate success
         return true;
     }
@@ -263,8 +262,6 @@ bool read_encoder_counts() {
     if (checksum == soft_serial.read()) {
         // Copy the data across to the encoder counts struct
         memcpy(&encoder_counts_struct, rx_buffer, message_length);
-        // Read until the end of the message
-        while (soft_serial.read() != END_MESSAGE_BYTE) {}
         // And return true to indicate success
         return true;
     }
@@ -393,13 +390,5 @@ void send_encoder_data() {
 
     // Then write the checksum
     Serial.write(checksum);
-}
-
-// Converts a long to an array of 4 bytes for serial transmission
-void long_to_bytes(int32_t val, byte bytes[]) {
-    bytes[0] =  val        & 255;
-    bytes[1] = (val >> 8)  & 255;
-    bytes[2] = (val >> 16) & 255;
-    bytes[3] = (val >> 24) & 255;
 }
 
