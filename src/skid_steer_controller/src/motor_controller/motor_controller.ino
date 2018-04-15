@@ -41,7 +41,7 @@ const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_
 
 // Serial constants
 const unsigned long BRAS_BAUDRATE = 38400UL;  // For comms with the Braswell chip (arduino_communicator_node)
-const unsigned long ENC_BAUDRATE  = 38400UL;  // For comms with encoder counter Uno
+const unsigned long ENC_BAUDRATE  = 9600UL;  // For comms with encoder counter Uno
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
 const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
