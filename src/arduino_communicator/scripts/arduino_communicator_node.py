@@ -246,13 +246,19 @@ class BoardInterface:
         self.serial_conn.write(BEGIN_MESSAGE_BYTE)
         assert(len(command_struct) == 8)
         command_data = struct.pack("<8B", *command_struct)
-        # Send struct length - must convert len(command_data) to byte array
-        self.serial_conn.write(bytearray((len(command_data),)))
-        self.serial_conn.write(command_data)
-        # Send checksum
         checksum = calc_checksum(command_data)
-        self.serial_conn.write(bytearray((checksum,)))
-        self.serial_conn.write(END_MESSAGE_BYTE)
+
+        try:
+            # Send struct length - must convert len(command_data) to byte array
+            self.serial_conn.write(bytearray((len(command_data),)))
+            self.serial_conn.write(command_data)
+            # Send checksum
+            self.serial_conn.write(bytearray((checksum,)))  # Regularly times out here!
+            self.serial_conn.write(END_MESSAGE_BYTE)
+        except serial.SerialTimeoutException:
+            rospy.logerr("Serial write timeout")
+            # Just pass for now, ignoring this attempt and trying again
+            pass
 
     def read_serial_data(self):
         if self.serial_conn.inWaiting() == 0:

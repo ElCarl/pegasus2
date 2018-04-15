@@ -187,8 +187,6 @@ void loop() {
 // TODO: implement a timeout in case of Serial failure
 // Should be short, otherwise the rover will become pretty unresponsive
 bool read_commands() {
-    // Could change this to start equal to size, would be a little more robust
-    uint8_t checksum;  
     uint8_t rx_buffer[RX_BUFF_LEN];
 
     // Read until we reach the start of the message
@@ -201,7 +199,7 @@ bool read_commands() {
     uint8_t message_length = Serial.read();
 
     // Initialise checksum with message_length
-    checksum = message_length;
+    uint8_t checksum = message_length;
 
     // Read each byte into the buffer
     for (uint8_t b = 0; b < message_length; b++) {
