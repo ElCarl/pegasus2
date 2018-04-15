@@ -191,7 +191,7 @@ class BoardInterface:
             self.full_port_name = self.base_port_name + str(self.port_num)
             try:
                 self.serial_conn = serial.Serial(self.full_port_name, self.baudrate,
-                                                 timeout=READ_TIMEOUT_S, write_timeout=WRITE_TIMEOUT_S)
+                                                 timeout=READ_TIMEOUT_S, writeTimeout=WRITE_TIMEOUT_S)
             except OSError:
                 rospy.logwarn("Arduino not found at %s, trying next", self.full_port_name)
                 self.port_num += 1
