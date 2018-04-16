@@ -25,6 +25,7 @@ HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
+BOARD_STATUS_BYTE = b'\xf9'  # F9=249
 ENCODER_DATA_BYTE = b'\xfa'  # FA=250
 SERIAL_READY_BYTE = b'\xfb'  # FB=251
 BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
@@ -266,6 +267,10 @@ class BoardInterface:
         rec_byte = self.serial_conn.read()
         if rec_byte == ENCODER_DATA_BYTE:
             self.read_encoder_data()
+        elif rec_byte == BOARD_STATUS_BYTE:
+            msg_len = self.serial_conn.read()
+            msg = self.serial_conn.read(msg_len)
+            rospy.loginfo("Board message: %s", msg)
         else:
             val = struct.unpack("B", rec_byte)[0]
             rospy.logerr("Unknown serial message type byte %d "

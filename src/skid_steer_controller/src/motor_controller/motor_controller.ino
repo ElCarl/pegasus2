@@ -45,6 +45,7 @@ const unsigned long ENC_BAUDRATE  = 57600UL;  // For comms with encoder counter 
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
 const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
+const byte BOARD_STATUS_BYTE      = 249;
 const byte ENCODER_DATA_BYTE      = 250;
 const byte SERIAL_READY_BYTE      = 251;
 const byte BEGIN_MESSAGE_BYTE     = 252;
@@ -215,7 +216,7 @@ bool read_commands() {
     }
 
     // Disabled as I'm suspicious it may be the cause of some deadlocks
-    //while (Serial.available() == 0) {}
+    while (Serial.available() == 0) {}
 
     // If the checksum was correct
     uint8_t expected_checksum = Serial.read();
@@ -228,7 +229,12 @@ bool read_commands() {
 
     // Else, ignore the message
     // And return false to indicate failure
-    if (DEBUG_MODE) { Serial.print("Checksum incorrect"); }
+    if (DEBUG_MODE) {
+        Serial.write(BOARD_STATUS_BYTE);
+        static byte msg[] = "Checksum incorrect";
+        Serial.write(sizeof(msg);
+        Serial.write(msg);
+    }
     return false;
 }
 
