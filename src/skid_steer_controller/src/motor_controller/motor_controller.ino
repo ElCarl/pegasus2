@@ -173,10 +173,6 @@ void loop() {
         if (read_commands()) {
             // then set the motor velocities accordingly.
             set_motor_velocities();
-            Serial.write("999", 3);
-        }
-        else {
-            Serial.write("911", 3);
         }
         // Else, leave the velocities as they are.
     }
