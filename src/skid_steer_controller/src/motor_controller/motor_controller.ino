@@ -54,6 +54,7 @@ const byte DRIVE_MESSAGE_BYTE     = 254;
 const byte END_MESSAGE_BYTE       = 255;
 const uint8_t RX_BUFF_LEN         = 64;
 const uint8_t MAX_ENCODER_READ_ATTEMPTS = 64;
+const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
 const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
 // Other IO constants
@@ -98,6 +99,7 @@ ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
 // Struct info
 uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
+uint8_t command_struct_len = sizeof(rover_command_struct);
 
 // SoftwareSerial
 SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
@@ -134,7 +136,6 @@ void setup() {
 
     // Begin serial connection to encoder counter
     soft_serial.begin(ENC_BAUDRATE);
-
 
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from Braswell chip
@@ -174,7 +175,7 @@ void init_pwm() {
 
 void loop() {
     // If any movement commands have been sent,
-    if (Serial.available() > 0) {
+    if (Serial.available() >= command_struct_len + 3) {
         // and if reading them is successful,
         if (read_commands()) {
             // then set the motor velocities accordingly.
@@ -208,11 +209,16 @@ void loop() {
 bool read_commands() {
     uint8_t rx_buffer[RX_BUFF_LEN];
 
-    // Read until we reach the start of the message
-    while (Serial.read() != BEGIN_MESSAGE_BYTE) {}
+    uint8_t read_attempts = 0;
 
-    // Check to ensure data is available
-    while (Serial.available() == 0) {}
+    // Read until we reach the start of the message
+    while (Serial.read() != BEGIN_MESSAGE_BYTE) {
+        // Unless we don't find it soon enough
+        if (read_attempts++ > MAX_COMMAND_READ_ATTEMPTS) {
+            // If we don't, then abandon the message
+            return false;
+        }
+    }
 
     // Read message_length of message - should not include checksum!
     uint8_t message_length = Serial.read();
@@ -222,15 +228,10 @@ bool read_commands() {
 
     // Read each byte into the buffer
     for (uint8_t b = 0; b < message_length; b++) {
-        // Wait until data is available. Is this needed, or does it just slow it down?
-        while (Serial.available() == 0) {}
         rx_buffer[b] = Serial.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
     }
-
-    // Disabled as I'm suspicious it may be the cause of some deadlocks
-    while (Serial.available() == 0) {}
 
     // If the checksum was correct
     uint8_t expected_checksum = Serial.read();
