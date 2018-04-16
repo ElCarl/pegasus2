@@ -256,7 +256,7 @@ class BoardInterface:
             self.serial_conn.write(bytearray((checksum,)))  # Regularly times out here!
         except serial.SerialTimeoutException:
             rospy.logerr("Serial write timeout")
-            # Just pass for now, ignoring this attempt and trying again
+            # Just pass for now, ignoring this attempt and trying again later
             pass
 
     def read_serial_data(self):

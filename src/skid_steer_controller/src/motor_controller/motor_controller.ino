@@ -96,7 +96,7 @@ ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
 // SoftwareSerial
-SoftwareSerial soft_serial(2, 3);
+SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
 
 
 
@@ -120,11 +120,15 @@ void setup() {
     // Start PWM with all motors stationary
     init_pwm();
 
-    // Begin serial connections
+    // Begin serial connection to Braswell
     Serial.begin(BRAS_BAUDRATE);
+
+    // Wait until Braswell serial is connected before connecting to encoder counter
+    while(!Serial);
+
+    // Begin serial connection to encoder counter
     soft_serial.begin(ENC_BAUDRATE);
 
-    while(!Serial);
 
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from Braswell chip
@@ -169,6 +173,10 @@ void loop() {
         if (read_commands()) {
             // then set the motor velocities accordingly.
             set_motor_velocities();
+            Serial.write("999", 3);
+        }
+        else {
+            Serial.write("911", 3);
         }
         // Else, leave the velocities as they are.
     }
