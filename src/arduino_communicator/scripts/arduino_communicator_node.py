@@ -362,7 +362,7 @@ def main_oop():
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
             rate.sleep()
     finally:
-        pass
+        board_interface.serial_conn.close()
         # TODO Stop all motors: implement a method in rover_controller/board_interface
         # TODO release serial object
             
