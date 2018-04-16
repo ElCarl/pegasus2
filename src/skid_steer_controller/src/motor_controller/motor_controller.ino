@@ -9,7 +9,7 @@
 const bool DEBUG_MODE = 0;
 
 // Electrical & physical constants
-const float MOTOR_MAX_SPEED = 0.7;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
+const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
 const float L_FRONT_MOTOR_RELATIVE_SPEED = 1;  // Some motors may be slower than others:
 const float L_MID_MOTOR_RELATIVE_SPEED   = 1;  // this should offer a way of addressing this
 const float L_REAR_MOTOR_RELATIVE_SPEED  = 1;
@@ -53,13 +53,13 @@ const byte ARM_MESSAGE_BYTE       = 253;
 const byte DRIVE_MESSAGE_BYTE     = 254;
 const byte END_MESSAGE_BYTE       = 255;
 const uint8_t RX_BUFF_LEN         = 64;
+const uint8_t MAX_ENCODER_READ_ATTEMPTS = 64;
+const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
 const uint8_t PWM_CHANNELS = 16;
 const unsigned int PWM_TICKS = 4096;
-
-
 
 // STRUCTS
 
@@ -96,9 +96,14 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
+// Struct info
+uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
+
 // SoftwareSerial
 SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
 
+// Timings
+uint32_t last_command_time_ms = 0;
 
 
 // MAIN PROGRAM CODE
@@ -174,12 +179,21 @@ void loop() {
         if (read_commands()) {
             // then set the motor velocities accordingly.
             set_motor_velocities();
+            last_command_time_ms = millis();
+        }
+        else {
+            // If we've not got a valid command recently
+            if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
+                // Set all motor velocities to zero
+                zero_all_velocities();
+                set_motor_velocities();
+            }
         }
         // Else, leave the velocities as they are.
     }
 
-    // If any encoder data has been sent,
-    if (soft_serial.available() > 0) {
+    // If encoder data has been sent (+3 is for BEGIN_MESSAGE_BYTE, struct_len and checksum)
+    if (soft_serial.available() >= encoder_struct_len + 3) {
         // and if reading them is successful,
         if (read_encoder_counts()) {
             // then send the encoder data to the Braswell chip.
@@ -245,11 +259,14 @@ bool read_encoder_counts() {
     uint8_t checksum;
     uint8_t rx_buffer[RX_BUFF_LEN];
 
-    // Read until we reach the start of the message
-    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {}
+    uint8_t attempts = 0;
 
-    // Check to ensure data is available
-    while (soft_serial.available() == 0) {}
+    // Read until we reach the start of the message
+    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {
+        // If we don't find the BEGIN_MESSAGE_BYTE in time, abort
+        if (attempts++ > MAX_ENCODER_READ_ATTEMPTS) {
+            return false;
+    }
 
     // Read message_length of message, not including checksum
     uint8_t message_length = soft_serial.read();
@@ -259,14 +276,10 @@ bool read_encoder_counts() {
 
     // Read each byte into the buffer
     for (uint8_t b = 0; b < message_length; b++) {
-        // Wait until data is available. Is this needed, or does it just slow it down?
-        while (soft_serial.available() == 0) {}
         rx_buffer[b] = soft_serial.read();
         // And calculate the checksum as we go
         checksum ^= rx_buffer[b];
     }
-
-    while (soft_serial.available() == 0) {}
 
     // If the checksum is correct
     if (checksum == soft_serial.read()) {
@@ -324,6 +337,9 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
         // Then scale to max as defined by MOTOR_MAX_SPEED
         control_outputs[0] *= MOTOR_MAX_SPEED;
         control_outputs[1] *= MOTOR_MAX_SPEED;
+        // TODO: I think this will make the end of the travel of the trigger
+        // pretty unresponsive - this scaling should probably be outside the
+        // if statement
     }
 }
 
@@ -400,5 +416,16 @@ void send_encoder_data() {
 
     // Then write the checksum
     Serial.write(checksum);
+}
+
+void zero_all_velocities() {
+    rover_command_struct.rover_linear_velocity = 100;
+    rover_command_struct.rover_angular_velocity = 100;
+    rover_command_struct.base_rotation_velocity = 100;
+    rover_command_struct.arm_actuator_1_velocity = 100;
+    rover_command_struct.arm_actuator_2_velocity = 100;
+    rover_command_struct.wrist_rotation_velocity = 100;
+    rover_command_struct.wrist_actuator_velocity = 100;
+    rover_command_struct.gripper_velocity = 100;
 }
 

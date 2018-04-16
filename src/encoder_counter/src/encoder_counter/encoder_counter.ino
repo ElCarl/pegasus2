@@ -56,7 +56,8 @@ void loop() {
     // of actual transmissions to number of expected transmissions; if it has
     // transmitted fewer than expected, then it will transmit.
     if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY
-        && Serial.availableForWrite() >= struct_len + 4) {
+        // struct_len + 3 for BEGIN_MESSAGE_BYTE, struct_len and checksum
+        && Serial.availableForWrite() >= struct_len + 3) {
         // multiply by 1000 to change from s to ms. Multiplication faster than
         // division, at the cost of a little clarity.
         transmit_encoder_counts_new();
