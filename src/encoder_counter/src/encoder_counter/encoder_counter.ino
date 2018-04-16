@@ -66,7 +66,7 @@ void loop() {
 
 void encoder_pin_change(uint8_t encoder) {
     enc_vals[encoder] <<= 2;
-    enc_vals[encoder] |= ((pin_states[2 * encoder] << 2) + pin_states[(2 * encoder) + 1]);
+    enc_vals[encoder] |= ((pin_states[2 * encoder] << 1) + pin_states[(2 * encoder) + 1]);
     encoder_counts[encoder] += LOOKUP_TABLE[enc_vals[encoder] & 0b1111];
 }
 
