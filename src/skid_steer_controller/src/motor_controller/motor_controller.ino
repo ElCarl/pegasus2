@@ -232,7 +232,7 @@ bool read_commands() {
     if (DEBUG_MODE) {
         Serial.write(BOARD_STATUS_BYTE);
         static byte msg[] = "Checksum incorrect";
-        Serial.write(sizeof(msg);
+        Serial.write(sizeof(msg));
         Serial.write(msg, sizeof(msg));
     }
     return false;
