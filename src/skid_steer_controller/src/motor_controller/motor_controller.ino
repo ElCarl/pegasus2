@@ -266,6 +266,7 @@ bool read_encoder_counts() {
         // If we don't find the BEGIN_MESSAGE_BYTE in time, abort
         if (attempts++ > MAX_ENCODER_READ_ATTEMPTS) {
             return false;
+        }
     }
 
     // Read message_length of message, not including checksum
