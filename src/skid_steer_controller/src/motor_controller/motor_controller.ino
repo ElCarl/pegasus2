@@ -33,9 +33,9 @@ const uint8_t R_REAR_MOTOR_PWM         = 5;
 const uint8_t BASE_ROTATE_MOTOR_PWM    = 6;
 const uint8_t ARM_ACTUATOR_1_PWM       = 7;
 const uint8_t ARM_ACTUATOR_2_PWM       = 8;
-const uint8_t WRIST_ROTATE_MOTOR_PWM   = 9;
-const uint8_t WRIST_ACTUATOR_PWM       = 10;
-const uint8_t GRIPPER_MOTOR_PWM        = 11;
+const uint8_t GRIPPER_MOTOR_PWM        = 9;
+const uint8_t WRIST_ROTATE_MOTOR_PWM   = 10;
+const uint8_t WRIST_ACTUATOR_PWM       = 11;
 const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
