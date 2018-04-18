@@ -16,7 +16,7 @@ uint8_t pin_states[]  = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint8_t enc_vals[]    = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 long encoder_counts[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint8_t state;
-unsigned long transmissions = 0;  // How many times the program has sent the encoder counts
+uint32_t transmissions = 0;  // How many times the program has sent the encoder counts
 
 // Define the TX data structure
 struct ENCODER_DATA_STRUCTURE {
@@ -55,14 +55,21 @@ void loop() {
     // Checks to see if the encoder counts should be transmitted. Compares number
     // of actual transmissions to number of expected transmissions; if it has
     // transmitted fewer than expected, then it will transmit.
-    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY
-        // struct_len + 3 for BEGIN_MESSAGE_BYTE, struct_len and checksum
-        && Serial.availableForWrite() >= struct_len + 3) {
+    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY) {
         // multiply by 1000 to change from s to ms. Multiplication faster than
         // division, at the cost of a little clarity.
-        transmit_encoder_counts_new();
+
+        // Ensure we have space in the write buffer before trying to write
+        // since we don't want to miss ticks while waiting to write!
+        if (Serial.availableForWrite() >= struct_len + 3) {
+        // struct_len + 3 for BEGIN_MESSAGE_BYTE, struct_len and checksum
+            transmit_encoder_counts_new();
+        }
+
+        // This should be incremented regardless to ensure we don't spam messages
+        // upon connection
         transmissions++;
-    }  
+    }
 }
 
 void encoder_pin_change(uint8_t encoder) {

@@ -331,18 +331,9 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
         max_control = abs(control_outputs[1]);
     }
 
-    // Check if output scaling is required
-    if (max_control > MOTOR_MAX_SPEED) {
-        // If it is, scale to max value of 1
-        control_outputs[0] /= max_control;
-        control_outputs[1] /= max_control;
-        // Then scale to max as defined by MOTOR_MAX_SPEED
-        control_outputs[0] *= MOTOR_MAX_SPEED;
-        control_outputs[1] *= MOTOR_MAX_SPEED;
-        // TODO: I think this will make the end of the travel of the trigger
-        // pretty unresponsive - this scaling should probably be outside the
-        // if statement
-    }
+    // Scale outputs to be within the stated limits
+    control_outputs[0] *= MOTOR_MAX_SPEED;
+    control_outputs[1] *= MOTOR_MAX_SPEED;
 }
 
 void set_wheel_speeds(float wheel_speeds[]) {
