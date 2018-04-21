@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 #include <SoftwareSerial.h>
-
+#include <PID_v1.h>
 
 // CONSTANTS
 
@@ -57,6 +57,12 @@ const uint8_t MAX_ENCODER_READ_ATTEMPTS = 64;
 const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
 const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
+// PID constants
+const float WHEEL_KP = 1;
+const float WHEEL_KI = 0.1;
+const float WHEEL_KD = 0;
+const uint8_t ENCODER_HISTORY_LENGTH = 5;
+
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
 const uint8_t PWM_CHANNELS = 16;
@@ -100,6 +106,22 @@ ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 // Struct info
 uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
 uint8_t command_struct_len = sizeof(rover_command_struct);
+
+// Encoder stuff
+int32_t left_wheel_encoder_counts[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
+int32_t right_wheel_encoder_counts[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
+int16_t right_wheel_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // velocity
+int16_t left_wheel_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];   // velocity
+int32_t encoder_times[ENCODER_HISTORY_LENGTH];
+
+// Wheel velocities
+float left_wheel_estimated_velocities[WHEELS_PER_SIDE];
+float right_wheel_estimated_velocities[WHEELS_PER_SIDE];
+float left_wheel_target_velocities[WHEELS_PER_SIDE];
+float right_wheel_target_velocities[WHEELS_PER_SIDE];
+
+// PID Controllers
+//PID fl_pid
 
 // SoftwareSerial
 SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
