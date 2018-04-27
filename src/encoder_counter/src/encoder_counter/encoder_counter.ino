@@ -8,7 +8,7 @@ const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 
 
 // Serial communication constants
 const unsigned long BAUDRATE = 38400UL;
-const unsigned long TRANSMIT_FREQUENCY = 10;  // How frequently to send the encoder counts
+const unsigned long TRANSMIT_FREQUENCY_HZ = 10;  // How frequently to send the encoder counts
 const byte BEGIN_MESSAGE_BYTE = 252;
 
 // Global variables
@@ -55,7 +55,7 @@ void loop() {
     // Checks to see if the encoder counts should be transmitted. Compares number
     // of actual transmissions to number of expected transmissions; if it has
     // transmitted fewer than expected, then it will transmit.
-    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY) {
+    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY_HZ) {
         // multiply by 1000 to change from s to ms. Multiplication faster than
         // division, at the cost of a little clarity.
 
@@ -101,7 +101,6 @@ void transmit_encoder_counts_new() {
         Serial.write(send_byte);
         checksum ^= send_byte;
     }
-
     // Send checksum
     Serial.write(checksum);
 }
