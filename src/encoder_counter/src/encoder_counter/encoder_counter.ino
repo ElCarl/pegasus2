@@ -1,22 +1,25 @@
 // Input constants
-const uint8_t N_PINS = 18;
-const uint8_t N_ENCS = 9;   // This should be N_PINS / 2!
-const uint8_t INPUT_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 14, 17, 16, 19, 18};  // Order is important!
+const uint8_t N_PINS = 14;
+const uint8_t N_ENCS = 7;   // This should be N_PINS / 2!
+const uint8_t INPUT_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9, 15, 14, 17, 16, 19, 18};  // Order is important! It defines which pins belong to which encoder
 
 // Lookup table for encoder changes
 const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
-// Serial communication constants
-const unsigned long BAUDRATE = 38400UL;
-const unsigned long TRANSMIT_FREQUENCY_HZ = 10;  // How frequently to send the encoder counts
-const byte BEGIN_MESSAGE_BYTE = 252;
+// Communication constants
+const unsigned long BAUDRATE = 115200; // Debugging
+const byte REQUEST_ENCODER_COUNTS = 248;
+const byte SEND_MESSAGE           = 252;
+const byte END_MESSAGE            = 255;
 
 // Global variables
-uint8_t pin_states[]  = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-uint8_t enc_vals[]    = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-long encoder_counts[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t pin_states[]  = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t enc_vals[]    = {0, 0, 0, 0, 0, 0, 0};
+long encoder_counts[] = {0, 0, 0, 0, 0, 0, 0};
 uint8_t state;
-uint32_t transmissions = 0;  // How many times the program has sent the encoder counts
+
+// Debug globals
+uint16_t counter = 0;
 
 // Define the TX data structure
 struct ENCODER_DATA_STRUCTURE {
@@ -24,11 +27,16 @@ struct ENCODER_DATA_STRUCTURE {
     int32_t encoder_counts[N_ENCS];
 };
 
-ENCODER_DATA_STRUCTURE encoder_counts_struct;
+// SPI communication global variables
+volatile uint8_t transmission_pos = 0;
+volatile uint8_t checksum;
 
 uint32_t handshake_time_ms;
 
+// Encoder struct declaration & info
+ENCODER_DATA_STRUCTURE encoder_counts_struct;
 uint8_t struct_len = sizeof(encoder_counts_struct);
+uint8_t * struct_addr = (uint8_t*)&encoder_counts_struct;
 
 void setup() {
     // Pin modes
@@ -36,8 +44,69 @@ void setup() {
         pinMode(INPUT_PINS[pin], INPUT);
     }
     
-    // Begin serial connection
+    // Set pin modes for SPI communication
+    pinMode(MISO, OUTPUT);
+    pinMode(MOSI, INPUT);
+    pinMode(SCK, INPUT);
+    pinMode(SS, INPUT);
+
+    // Set bits in the SPI register
+    SPCR |=  _BV(SPE);   // Enable SPI
+    SPCR |=  _BV(SPIE);  // Enable SPI interrupts
+    SPCR &= ~_BV(DORD);  // MSB first
+    SPCR &= ~_BV(MSTR);  // Slave mode
+    SPCR &= ~_BV(CPOL);  // Clock polarity
+    SPCR &= ~_BV(CPHA);  // Clock phase
+
+    // Begin serial connection: for debugging only
     Serial.begin(BAUDRATE);
+    Serial.println("Started");
+}
+
+// Interrupt service routine to handle SPI communications
+ISR (SPI_STC_vect) {
+    // Read the data from the SPI register
+    volatile uint8_t data = SPDR;
+    Serial.print("SPDR: ");
+    Serial.println(data);
+
+    // If encoder data is requested
+    if (data == REQUEST_ENCODER_COUNTS) {
+        // Load the data length into the SPI register
+        SPDR = struct_len;
+
+        // Reset the transmission position, in case any communication
+        // is lost from the master and it restarts
+        transmission_pos = 0;
+
+        // Load the encoder data into the struct
+        for (volatile uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
+            encoder_counts_struct.encoder_counts[encoder] = encoder_counts[encoder];
+        }
+
+        // Calculate checksum. This could go in the per-byte transmission if
+        // the setup in the first interrupt is too long
+        checksum = struct_len;
+        for (volatile uint8_t i = 0; i < struct_len; i++) {
+            checksum ^= *(struct_addr + i);
+        }
+    }
+    // If main message body data is requested
+    else if (data == SEND_MESSAGE) {
+        // Check if we have reached the end of the message
+        if (transmission_pos >= struct_len) {
+            // If so, load the checksum into the SPI register
+            SPDR = checksum;
+        }
+        // If there's still data to send
+        else {
+            // Load the next byte of the struct into the register
+            SPDR = *(struct_addr + transmission_pos++);
+        }
+    }
+    else { //if (data == END_MESSAGE) OR if we receive an unrecognised message
+        transmission_pos = 0;
+    }
 }
 
 void loop() {
@@ -51,25 +120,6 @@ void loop() {
             encoder_pin_change(pin / 2);  // (pin / 2) gives the encoder number:
         }                                 // 0 & 1 -> 0, 2 & 3 -> 1, etc.
     }
-    
-    // Checks to see if the encoder counts should be transmitted. Compares number
-    // of actual transmissions to number of expected transmissions; if it has
-    // transmitted fewer than expected, then it will transmit.
-    if (transmissions * 1000 < millis() * TRANSMIT_FREQUENCY_HZ) {
-        // multiply by 1000 to change from s to ms. Multiplication faster than
-        // division, at the cost of a little clarity.
-
-        // Ensure we have space in the write buffer before trying to write
-        // since we don't want to miss ticks while waiting to write!
-        if (Serial.availableForWrite() >= struct_len + 3) {
-        // struct_len + 3 for BEGIN_MESSAGE_BYTE, struct_len and checksum
-            transmit_encoder_counts_new();
-        }
-
-        // This should be incremented regardless to ensure we don't spam messages
-        // upon connection
-        transmissions++;
-    }
 }
 
 void encoder_pin_change(uint8_t encoder) {
@@ -78,10 +128,9 @@ void encoder_pin_change(uint8_t encoder) {
     encoder_counts[encoder] += LOOKUP_TABLE[enc_vals[encoder] & 0b1111];
 }
 
-void transmit_encoder_counts_new() {
+void transmit_encoder_counts_serial() {
     uint8_t send_byte;
-    uint8_t checksum = struct_len;
-    uint8_t * struct_addr = (uint8_t*)&encoder_counts_struct;
+    uint8_t serial_checksum = struct_len;
 
     encoder_counts_struct.tick_stamp_ms = millis() - handshake_time_ms;
 
@@ -90,7 +139,7 @@ void transmit_encoder_counts_new() {
     }
 
     // Start message
-    Serial.write(BEGIN_MESSAGE_BYTE);
+    Serial.write(SEND_MESSAGE);
 
     // Send struct length
     Serial.write(struct_len);
@@ -99,9 +148,8 @@ void transmit_encoder_counts_new() {
     for (uint8_t i = 0; i < struct_len; i++) {
         send_byte = *(struct_addr + i);
         Serial.write(send_byte);
-        checksum ^= send_byte;
+        serial_checksum ^= send_byte;
     }
     // Send checksum
-    Serial.write(checksum);
+    Serial.write(serial_checksum);
 }
-

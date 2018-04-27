@@ -45,17 +45,20 @@ const unsigned long ENC_BAUDRATE  = 38400UL;  // For comms with encoder counter 
 const uint8_t SOFTSERIAL_RX_PIN   = 2;
 const uint8_t SOFTSERIAL_TX_PIN   = 3;
 const unsigned long TIMEOUT_MS    = 5000;   // TODO - actually implement this!
-const byte BOARD_STATUS_BYTE      = 249;
-const byte ENCODER_DATA_BYTE      = 250;
-const byte SERIAL_READY_BYTE      = 251;
-const byte BEGIN_MESSAGE_BYTE     = 252;
-const byte ARM_MESSAGE_BYTE       = 253;
-const byte DRIVE_MESSAGE_BYTE     = 254;
-const byte END_MESSAGE_BYTE       = 255;
 const uint8_t RX_BUFF_LEN         = 64;
 const uint8_t MAX_ENCODER_READ_ATTEMPTS = 64;
 const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
 const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
+
+// Byte message definitions
+const byte REQUEST_ENCODER_COUNTS = 248;
+const byte BOARD_STATUS_BYTE      = 249;
+const byte ENCODER_DATA_BYTE      = 250;
+const byte SERIAL_READY_BYTE      = 251;
+const byte SEND_MESSAGE_BYTE      = 252;
+const byte ARM_MESSAGE_BYTE       = 253;
+const byte DRIVE_MESSAGE_BYTE     = 254;
+const byte END_MESSAGE_BYTE       = 255;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -193,7 +196,7 @@ void loop() {
         // Else, leave the velocities as they are.
     }
 
-    // If encoder data has been sent (+3 is for BEGIN_MESSAGE_BYTE, struct_len and checksum)
+    // If encoder data has been sent (+3 is for SEND_MESSAGE_BYTE, struct_len and checksum)
     if (soft_serial.available() >= encoder_struct_len + 3) {
         // and if reading them is successful,
         if (read_encoder_counts()) {
@@ -212,7 +215,7 @@ bool read_commands() {
     uint8_t read_attempts = 0;
 
     // Read until we reach the start of the message
-    while (Serial.read() != BEGIN_MESSAGE_BYTE) {
+    while (Serial.read() != SEND_MESSAGE_BYTE) {
         // Unless we don't find it soon enough
         if (read_attempts++ > MAX_COMMAND_READ_ATTEMPTS) {
             // If we don't, then abandon the message
@@ -263,8 +266,8 @@ bool read_encoder_counts() {
     uint8_t attempts = 0;
 
     // Read until we reach the start of the message
-    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {
-        // If we don't find the BEGIN_MESSAGE_BYTE in time, abort
+    while (soft_serial.read() != SEND_MESSAGE_BYTE) {
+        // If we don't find the SEND_MESSAGE_BYTE in time, abort
         if (attempts++ > MAX_ENCODER_READ_ATTEMPTS) {
             return false;
         }
