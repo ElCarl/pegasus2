@@ -81,6 +81,7 @@ const uint8_t ENCODER_CHECKSUM_ERROR = 2;
 const uint8_t ENCODER_READ_ERROR = 3;
 const uint8_t COMMAND_FIND_START_ERROR = 4;
 const uint8_t COMMAND_CHECKSUM_ERROR = 5;
+const uint8_t NO_COMMANDS_ERROR = 6;
 
 // STRUCTS
 
