@@ -7,7 +7,7 @@ const uint8_t INPUT_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9, 15, 14, 17, 16, 19, 18};  
 const int8_t LOOKUP_TABLE[] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
 // Communication constants
-const unsigned long BAUDRATE = 115200; // Debugging
+const unsigned long BAUDRATE = 1000000; // Debugging
 const byte REQUEST_ENCODER_COUNTS = 248;
 const byte SEND_MESSAGE           = 252;
 const byte END_MESSAGE            = 255;
@@ -59,17 +59,14 @@ void setup() {
     SPCR &= ~_BV(CPHA);  // Clock phase
 
     // Begin serial connection: for debugging only
-    Serial.begin(BAUDRATE);
-    Serial.println("Started");
+    //Serial.begin(BAUDRATE);
 }
 
 // Interrupt service routine to handle SPI communications
 ISR (SPI_STC_vect) {
     // Read the data from the SPI register
     volatile uint8_t data = SPDR;
-    Serial.print("SPDR: ");
-    Serial.println(data);
-
+    
     // If encoder data is requested
     if (data == REQUEST_ENCODER_COUNTS) {
         // Load the data length into the SPI register
@@ -80,6 +77,8 @@ ISR (SPI_STC_vect) {
         transmission_pos = 0;
 
         // Load the encoder data into the struct
+        // This might be doable with a memcpy for speed - although
+        // the compiler might be doing that already
         for (volatile uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
             encoder_counts_struct.encoder_counts[encoder] = encoder_counts[encoder];
         }
