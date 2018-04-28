@@ -1,8 +1,8 @@
 <launch>
 
-  <node pkg="encodometry" type="wheel_odometry.py" name="wheel_odom_node" output="screen">
-  </node>
+  <include file="/home/pegasus/pegasus2/src/launch/node_launch.launch"/>
 
-  <include file="$(find rover_frames)/launch/frames.launch"/>
+
   <include file="/home/pegasus/pegasus2/src/iai_kinect2/kinect2_bridge/launch/kinect2_bridge.launch"/>
+  <include file="$(find pointcloud_to_laserscan)/launch/peggy_node.launch"/>
 </launch>

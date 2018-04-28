@@ -127,28 +127,3 @@ void encoder_pin_change(uint8_t encoder) {
     encoder_counts[encoder] += LOOKUP_TABLE[enc_vals[encoder] & 0b1111];
 }
 
-void transmit_encoder_counts_serial() {
-    uint8_t send_byte;
-    uint8_t serial_checksum = struct_len;
-
-    encoder_counts_struct.tick_stamp_ms = millis() - handshake_time_ms;
-
-    for (uint8_t encoder = 0; encoder < N_ENCS; encoder++) {
-        encoder_counts_struct.encoder_counts[encoder] = encoder_counts[encoder];
-    }
-
-    // Start message
-    Serial.write(SEND_MESSAGE);
-
-    // Send struct length
-    Serial.write(struct_len);
-
-    // Send struct data & calculate checksum
-    for (uint8_t i = 0; i < struct_len; i++) {
-        send_byte = *(struct_addr + i);
-        Serial.write(send_byte);
-        serial_checksum ^= send_byte;
-    }
-    // Send checksum
-    Serial.write(serial_checksum);
-}
