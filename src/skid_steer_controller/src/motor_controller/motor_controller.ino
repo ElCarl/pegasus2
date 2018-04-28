@@ -1,6 +1,5 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <SoftwareSerial.h>
 #include <SPI.h>
 
 
@@ -267,7 +266,7 @@ bool read_commands() {
     uint8_t read_attempts = 0;
 
     // Read until we reach the start of the message
-    while (Serial.read() != SEND_MESSAGE_BYTE) {
+    while (Serial.read() != BEGIN_MESSAGE_BYTE) {
         // Unless we don't find it soon enough
         if (read_attempts++ > MAX_COMMAND_READ_ATTEMPTS) {
             // If we don't find it, then abandon the message after
@@ -411,15 +410,6 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
 
     // Right wheel velocity is sum of linear and angular velocities
     control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-
-    // Find largest absolute control value
-    float max_control;
-    if (abs(control_outputs[0]) > abs(control_outputs[1])) {
-        max_control = abs(control_outputs[0]);
-    }
-    else {
-        max_control = abs(control_outputs[1]);
-    }
 
     // Scale outputs to be within the stated limits
     control_outputs[0] *= MOTOR_MAX_SPEED;
