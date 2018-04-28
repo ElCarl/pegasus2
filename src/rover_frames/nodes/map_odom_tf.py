@@ -8,19 +8,19 @@ import geometry_msgs.msg
 import sensor_msgs.msg
 
 def map_base_gps_tf(data):
-    location = [38.55, -110.744, 1320] #[data.latitude, data.longitude, data.altitude]
+    location = [data.latitude, data.longitude, data.altitude]
     start_point = [38.373, -110.714, 1309]
-    self.dloc[0] = location[0] - start_point[0]
-    self.dloc[1] = location[1] - start_point[1]
-    self.dloc[2] = location[2] - start_point[2]
+    dloc[0] = location[0] - start_point[0]
+    dloc[1] = location[1] - start_point[1]
+    dloc[2] = location[2] - start_point[2]
 
 def map_base_imu_tf(data):
-    orientation = [0.0, 0.0, 0.0, 1.0] #data.orientation
+    orientation = data.orientation
     start = [0.0, 0.0, 0.0, 1.0]
-    self.dor[0] = orientation[0] - start[0]
-    self.dor[1] = orientation[1] - start[1]
-    self.dor[2] = orientation[2] - start[2]
-    self.dor[3] = orientation[3] - start[3]
+    dor[0] = orientation[0] - start[0]
+    dor[1] = orientation[1] - start[1]
+    dor[2] = orientation[2] - start[2]
+    dor[3] = orientation[3] - start[3]
 
 if __name__ == '__main__':
     rospy.init_node('map_odom_tf')
