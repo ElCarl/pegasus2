@@ -267,7 +267,7 @@ bool read_commands() {
     uint8_t read_attempts = 0;
 
     // Read until we reach the start of the message
-    while (Serial.read() != BEGIN_MESSAGE_BYTE) {
+    while (Serial.read() != SEND_MESSAGE_BYTE) {
         // Unless we don't find it soon enough
         if (read_attempts++ > MAX_COMMAND_READ_ATTEMPTS) {
             // If we don't find it, then abandon the message after

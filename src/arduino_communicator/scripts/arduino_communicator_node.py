@@ -15,7 +15,7 @@ DEBUG_MODE = False
 
 # Serial constants
 ARDUINO_PORT_BASE = "/dev/ttyACM"
-BAUDRATE = 38400
+BAUDRATE = 1000000
 SERIAL_RETRY_LIMIT = 30
 READ_TIMEOUT_S = 0.01
 WRITE_TIMEOUT_S = 0.01
@@ -45,6 +45,17 @@ R_REAR_MOTOR_ENCODER = 7
 BASE_ROTATE_MOTOR_ENCODER = 4
 WRIST_ROTATE_MOTOR_ENCODER = 5
 GRIPPER_MOTOR_ENCODER = 6
+
+# Error codes
+ERROR_CODES = {
+    0: "ENCODER_STRUCT_LEN_MISMATCH",
+    1: "ENCODER_STRUCT_TOO_LONG",
+    2: "ENCODER_CHECKSUM_ERROR",
+    3: "ENCODER_READ_ERROR",
+    4: "COMMAND_FIND_START_ERROR",
+    5: "COMMAND_CHECKSUM_ERROR",
+    6: "NO_COMMANDS_ERROR"
+}
 
 handshake_time = 0
 
@@ -268,9 +279,8 @@ class BoardInterface:
         if rec_byte == ENCODER_DATA_BYTE:
             self.read_encoder_data()
         elif rec_byte == BOARD_STATUS_BYTE:
-            msg_len = self.serial_conn.read()
-            msg = self.serial_conn.read(msg_len)
-            rospy.loginfo("Board message: %s", msg)
+            error_code = self.serial_conn.read();
+            rospy.logwarn(ERROR_CODES[error_code]);
         else:
             val = struct.unpack("B", rec_byte)[0]
             rospy.logerr("Unknown serial message type byte %d "
@@ -290,7 +300,7 @@ class BoardInterface:
         # '<' enforces little-endianness
         # L9lB means:
         #   L  - one unsigned long (timestamp)
-        #   9l - nine signed longs (encoder counts)
+        #   [n]l - [n] signed longs (encoder counts)
         try:
             encoder_data = struct.unpack("<L9l", data_str)
         except struct.error:
