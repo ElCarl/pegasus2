@@ -25,6 +25,7 @@ HANDSHAKE_WARNING_MS = 5000
 HANDSHAKE_TIMEOUT_MS = 20000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
+DEBUG_BYTE = b'\xf8'  # F8=248
 BOARD_STATUS_BYTE = b'\xf9'  # F9=249
 ENCODER_DATA_BYTE = b'\xfa'  # FA=250
 SERIAL_READY_BYTE = b'\xfb'  # FB=251
@@ -34,17 +35,17 @@ DRIVE_MESSAGE_BYTE = b'\xfe'  # FE=254
 END_MESSAGE_BYTE = b'\xff'  # FF=255
 
 # Encoder constants
-NUM_ENCODERS = 9
+NUM_ENCODERS = 7
 ENCODER_MESSAGE_TIMEOUT_MS = 50
 L_FRONT_MOTOR_ENCODER = 1
 L_MID_MOTOR_ENCODER = 2
 L_REAR_MOTOR_ENCODER = 3
-R_FRONT_MOTOR_ENCODER = 9
-R_MID_MOTOR_ENCODER = 8
-R_REAR_MOTOR_ENCODER = 7
-BASE_ROTATE_MOTOR_ENCODER = 4
-WRIST_ROTATE_MOTOR_ENCODER = 5
-GRIPPER_MOTOR_ENCODER = 6
+R_FRONT_MOTOR_ENCODER = 7
+R_MID_MOTOR_ENCODER = 6
+R_REAR_MOTOR_ENCODER = 5
+#BASE_ROTATE_MOTOR_ENCODER = 
+#WRIST_ROTATE_MOTOR_ENCODER = 
+GRIPPER_MOTOR_ENCODER = 4
 
 # Error codes
 ERROR_CODES = {
@@ -171,9 +172,12 @@ class RoverController:
         encoder_counts.right_wheel_counts = [rf, rm, rr]
 
         # Then the remaining encoders
-        encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
-        encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
+        ##encoder_counts.base_rotation_counts = encoder_data[BASE_ROTATE_MOTOR_ENCODER]
+        ##encoder_counts.wrist_rotation_counts = encoder_data[WRIST_ROTATE_MOTOR_ENCODER]
         encoder_counts.gripper_counts = encoder_data[GRIPPER_MOTOR_ENCODER]
+
+        # Add the header to the message
+        encoder_counts.header = header
 
         # Finally, publish the data
         self.encoder_publisher.publish(encoder_counts)
@@ -279,8 +283,15 @@ class BoardInterface:
         if rec_byte == ENCODER_DATA_BYTE:
             self.read_encoder_data()
         elif rec_byte == BOARD_STATUS_BYTE:
-            error_code = self.serial_conn.read();
+            error_code = struct.unpack("B", self.serial_conn.read())[0];
             rospy.logwarn(ERROR_CODES[error_code]);
+        elif rec_byte == DEBUG_BYTE:
+            msg_len = struct.unpack("B", self.serial_conn.read())[0]
+            msg_bytes = self.serial_conn.read(msg_len)
+            format_str = "B" * msg_len
+            info = [str(c) for c in struct.unpack(format_str, msg_bytes)]
+            msg = "Debug msg: " + ";".join(info)
+            rospy.logwarn(msg)
         else:
             val = struct.unpack("B", rec_byte)[0]
             rospy.logerr("Unknown serial message type byte %d "
@@ -302,7 +313,8 @@ class BoardInterface:
         #   L  - one unsigned long (timestamp)
         #   [n]l - [n] signed longs (encoder counts)
         try:
-            encoder_data = struct.unpack("<L9l", data_str)
+            format_str = "<L{}l".format(NUM_ENCODERS)
+            encoder_data = struct.unpack(format_str, data_str)
         except struct.error:
             rospy.logerr("read_encoder_data error in struct unpack. Message: %s", data_str)
             return False
@@ -367,10 +379,12 @@ def main_oop():
 
     # then main loop code
     try:
-        while True:
+        while not rospy.is_shutdown():
             rover_controller.pass_commands()
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
             rate.sleep()
+    except rospy.ROSInterruptException:
+        pass
     finally:
         board_interface.serial_conn.close()
         # TODO Stop all motors: implement a method in rover_controller/board_interface

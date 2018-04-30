@@ -6,14 +6,14 @@
 // CONSTANTS
 
 // Debug constants
-const bool DEBUG_MODE = 0;
+const bool DEBUG_MODE = 1;
 
 // Electrical & physical constants
 const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
 const uint8_t WHEELS_PER_SIDE = 3;
-const uint8_t N_ENCS = 9;
+const uint8_t N_ENCS = 7;
 const float ROVER_LENGTH_M = 0.9; // Guess for now
 const float ROVER_WIDTH_M = 0.7;  // ditto
 const float WHEEL_CIRCUMF_M = 0.6283; // Measure for accuracy, but drift will mess this up anyway
@@ -41,6 +41,7 @@ const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_
 // Serial constants
 const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
 const unsigned long TIMEOUT_MS = 5000;   // TODO - actually implement this!
+const byte DEBUG_BYTE         = 248;
 const byte BOARD_STATUS_BYTE  = 249;
 const byte ENCODER_DATA_BYTE  = 250;
 const byte SERIAL_READY_BYTE  = 251;
@@ -313,6 +314,15 @@ void report_error(uint8_t error_code) {
     Serial.write(error_code);
 }
 
+void report_data(uint8_t * data, uint8_t len) {
+    if (Serial.availableForWrite() < len + 2) {
+        return;
+    }
+    Serial.write(DEBUG_BYTE);
+    Serial.write(len);
+    Serial.write(data, len);
+}
+
 bool read_encoder_counts() {
     uint8_t attempts = 0;
 
@@ -334,6 +344,10 @@ bool read_encoder_counts() {
         // Check received struct length is as expected
         if (recv_struct_len != encoder_struct_len) {
             report_error(ENCODER_STRUCT_LEN_MISMATCH);
+            if (DEBUG_MODE) {
+                uint8_t data[] = {recv_struct_len, encoder_struct_len};
+                report_data(data, sizeof(data));
+            }
         }
         // Check received struct length isn't too long for the buffer
         else if (recv_struct_len > SPI_RX_BUFF_LEN) {
@@ -365,7 +379,7 @@ bool read_encoder_counts() {
                 // Copy data from buffer into encoder struct
                 memcpy(encoder_struct_addr, rx_buffer, encoder_struct_len);
                 // Insert the timestamp
-                encoder_counts_struct.tick_stamp_ms = millis();
+                encoder_counts_struct.tick_stamp_ms = millis() - enc_count_handshake_time_ms;
                 // Disable the encoder counter SPI slave
                 digitalWrite(SS, HIGH);
                 // And return true to indicate successful transfer
@@ -469,7 +483,7 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 
 bool send_encoder_data() {
     // Check if there is space in the buffer to write
-    if (Serial.availableForWrite() > encoder_struct_len + 3) {
+    if (Serial.availableForWrite() < encoder_struct_len + 3) {
         // Indicate failure if there isn't
         return false;
     }
