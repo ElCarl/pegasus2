@@ -5,6 +5,7 @@ import serial
 import time
 import struct
 
+from std_msgs.msg import Float32
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Header
 from arduino_communicator.msg import EncoderCounts
@@ -21,8 +22,7 @@ READ_TIMEOUT_S = 0.01
 WRITE_TIMEOUT_S = 0.01
 
 # Program constants
-HANDSHAKE_WARNING_MS = 5000
-HANDSHAKE_TIMEOUT_MS = 20000
+HANDSHAKE_TIMEOUT_MS = 5000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
 DEBUG_BYTE = b'\xf8'  # F8=248
@@ -33,6 +33,28 @@ BEGIN_MESSAGE_BYTE = b'\xfc'  # FC=252
 ARM_MESSAGE_BYTE = b'\xfd'  # FD=253
 DRIVE_MESSAGE_BYTE = b'\xfe'  # FE=254
 END_MESSAGE_BYTE = b'\xff'  # FF=255
+
+# Command constants
+COMMAND_STRUCT = {
+    # Not strictly used, but good for comparison
+    "lin_vel": int,
+    "ang_vel": int,
+    "base_rot": int,
+    "arm_act_1": int,
+    "arm_act_2": int,
+    "wrist_rot": int,
+    "wrist_act": int,
+    "gripper": int,
+    "servo_yaw_pos_deg": int,
+    "servo_pitch_pos_deg": int
+}
+COMMAND_STRUCT_LEN = len(COMMAND_STRUCT)
+COMMAND_STRUCT_FORMAT = "<{}B".format(COMMAND_STRUCT_LEN)  # Only valid when all commands are bytes
+
+# Servo constants
+MAX_SERVO_SPEED_DPS = 30
+MIN_SERVO_ANGLE = 0
+MAX_SERVO_ANGLE = 180
 
 # Encoder constants
 NUM_ENCODERS = 7
@@ -64,11 +86,19 @@ handshake_time = 0
 class RoverCommand:
     drive_command = None
     arm_command = None
+    servo_yaw_pos = None
+    servo_pitch_pos = None
+    last_servo_update_time = None
 
     def __init__(self):
         # Initialise drive and arm commands with zeros
         self.drive_command = Twist()
         self.arm_command = ArmCommand()
+        self.servo_yaw_rate = Float32()
+        self.servo_pitch_rate = Float32()
+        self.servo_yaw_pos = 90
+        self.servo_pitch_pos = 90
+        self.last_servo_update_time = time.time()
 
     def update_drive_command(self, vel_topic_data):
         """
@@ -86,12 +116,25 @@ class RoverCommand:
         self.arm_command = arm_topic_data
         rospy.logdebug("updated arm command")
 
+    def update_yaw_command(self, yaw_topic_data):
+        dt = time.time() - self.last_servo_update_time
+        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * yaw_topic_data
+        self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+
+    def update_pitch_command(self, pitch_topic_data):
+        dt = time.time() - self.last_servo_update_time
+        self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * pitch_topic_data
+        self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+
 
 class RoverController:
     last_command = None
     board_interface = None
     rover_command = None
     encoder_publisher = None
+
+    servo_yaw_pos = None
+    servo_pitch_pos = None
 
     def __init__(self, board_interface, rover_command):
         """
@@ -102,6 +145,8 @@ class RoverController:
         self.rover_command = rover_command
         board_interface.encoder_callback = self.publish_enc_counts
         self.command = RoverCommand()
+        self.servo_yaw_pos = 90
+        self.servo_pitch_pos = 90
         rospy.loginfo("RoverController instance initialised")
 
     def pass_commands(self):
@@ -121,10 +166,13 @@ class RoverController:
         wrist_rot = self.rover_command.arm_command.wrist_rotation_velocity
         wrist_act = self.rover_command.arm_command.wrist_actuator_velocity
         gripper = self.rover_command.arm_command.gripper_velocity
+        # Servo commands
+        servo_yaw_pos_deg = self.rover_command.servo_yaw_pos
+        servo_pitch_pos_deg = self.rover_command.servo_pitch_pos
 
-        command_struct = [0]*8
+        command_struct = [0] * COMMAND_STRUCT_LEN
 
-        # Scales commands to be between [0,200]
+        # Scales commands to be [0,200]
         command_struct[0] = int(100 + (100 * lin_vel))
         command_struct[1] = int(100 + (100 * ang_vel))
         command_struct[2] = int(100 + (100 * base_rot))
@@ -133,6 +181,9 @@ class RoverController:
         command_struct[5] = int(100 + (100 * wrist_rot))
         command_struct[6] = int(100 + (100 * wrist_act))
         command_struct[7] = int(100 + (100 * gripper))
+        # Servo positions are [0, 180] already
+        command_struct[8] = int(servo_yaw_pos_deg)
+        command_struct[9] = int(servo_pitch_pos_deg)
 
         rospy.logdebug("Commands of type %s", type(command_struct[0]))
 
@@ -259,8 +310,8 @@ class BoardInterface:
         at some point, probably another byte
         """
         rospy.logdebug_throttle(2, "sending commands: {}".format(" ".join(str(c) for c in command_struct)))
-        assert(len(command_struct) == 8)
-        command_data = struct.pack("<8B", *command_struct)
+        assert(len(command_struct) == COMMAND_STRUCT_LEN)
+        command_data = struct.pack(COMMAND_STRUCT_FORMAT, *command_struct)
         checksum = calc_checksum(command_data)
 
         try:
@@ -283,17 +334,17 @@ class BoardInterface:
         if rec_byte == ENCODER_DATA_BYTE:
             self.read_encoder_data()
         elif rec_byte == BOARD_STATUS_BYTE:
-            error_code = struct.unpack("B", self.serial_conn.read())[0];
-            rospy.logwarn(ERROR_CODES[error_code]);
+            error_code = ord(self.serial_conn.read())
+            rospy.logwarn(ERROR_CODES[error_code])
         elif rec_byte == DEBUG_BYTE:
-            msg_len = struct.unpack("B", self.serial_conn.read())[0]
+            msg_len = ord(self.serial_conn.read())
             msg_bytes = self.serial_conn.read(msg_len)
             format_str = "B" * msg_len
             info = [str(c) for c in struct.unpack(format_str, msg_bytes)]
             msg = "Debug msg: " + ";".join(info)
             rospy.logwarn(msg)
         else:
-            val = struct.unpack("B", rec_byte)[0]
+            val = ord(rec_byte)
             rospy.logerr("Unknown serial message type byte %d "
                          "received from motor controller", val)
             self.echo_message()
@@ -352,11 +403,15 @@ def calc_checksum(char_string):
     return checksum
 
 
+def constrain(val, min_val, max_val):
+    return min(max_val, max(min_val, val))
+
 #####################
 # Main Program Flow #
 #####################
 
-def main_oop():
+
+def main():
     # Start the ROS node
     rospy.init_node("arduino_communicator_node")
 
@@ -371,6 +426,8 @@ def main_oop():
     # Initialise ROS subscribers
     rospy.Subscriber("rover_target_vel", Twist, rover_command.update_drive_command)
     rospy.Subscriber("rover_arm_commands", ArmCommand, rover_command.update_arm_command)
+    rospy.Subscriber("servo_yaw_rate", Float32, rover_command.update_yaw_command)
+    rospy.Subscriber("servo_pitch_rate", Float32, rover_command.update_pitch_command)
 
     rospy.loginfo("Subscribers initialised")
 
@@ -392,4 +449,4 @@ def main_oop():
             
 
 if __name__ == "__main__":
-    main_oop()
+    main()

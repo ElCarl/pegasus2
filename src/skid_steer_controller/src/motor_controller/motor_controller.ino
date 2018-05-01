@@ -163,7 +163,7 @@ void setup() {
     // While setting up, ensure motors cannot be used
     disable_motors();
 
-    // Start PWMs with all motors stationary and servos at 90 degress
+    // Start PWMs with all motors stationary and servos at 90 degrees
     init_pwm();
 
     // Begin serial connection to Braswell
