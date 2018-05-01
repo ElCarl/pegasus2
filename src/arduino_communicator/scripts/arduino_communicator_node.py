@@ -21,8 +21,7 @@ READ_TIMEOUT_S = 0.01
 WRITE_TIMEOUT_S = 0.01
 
 # Program constants
-HANDSHAKE_WARNING_MS = 5000
-HANDSHAKE_TIMEOUT_MS = 20000
+HANDSHAKE_TIMEOUT_MS = 5000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
 DEBUG_BYTE = b'\xf8'  # F8=248
