@@ -10,8 +10,6 @@
 
 	<node pkg="encodometry" type="wheel_odometry.py" name="encoder_noder"/>
 	
-	<node pkg="encodometry" type="test.py" name="fake_news_encoder"/>
-
 	<node pkg="nmea_navsat_driver" name="nmea_serial_driver" type="nmea_serial_driver">
 		<param name="port" value="/dev/ttyS4"/>
         	<param name="baud" value="9600"/>

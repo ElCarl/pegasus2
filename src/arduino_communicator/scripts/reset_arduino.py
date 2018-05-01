@@ -29,8 +29,8 @@ while not is_reset:
 print ""
 
 if is_reset:
-    print "Arduino successfully reset. Allowing at least 5 seconds for the board to reset fully..."
-    time.sleep(5)
+    print "Arduino successfully reset. Allowing at least 10 seconds for the board to reset fully..."
+    time.sleep(10)
 else:
     print "Reset failed, board not found on any port up to {}.\nHas the board just been reset?".format(full_port_name)
 

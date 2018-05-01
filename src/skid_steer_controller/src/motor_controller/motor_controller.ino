@@ -23,23 +23,23 @@ const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
 // PWM constants
 const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is ~1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
-const uint8_t L_FRONT_MOTOR_PWM        = 0;
-const uint8_t L_MID_MOTOR_PWM          = 2;
-const uint8_t L_REAR_MOTOR_PWM         = 4;
-const uint8_t R_FRONT_MOTOR_PWM        = 1;
-const uint8_t R_MID_MOTOR_PWM          = 3;
-const uint8_t R_REAR_MOTOR_PWM         = 5;
-const uint8_t BASE_ROTATE_MOTOR_PWM    = 6;
+const uint8_t L_FRONT_MOTOR_PWM        = 1;
+const uint8_t L_MID_MOTOR_PWM          = 3;
+const uint8_t L_REAR_MOTOR_PWM         = 5;
+const uint8_t R_FRONT_MOTOR_PWM        = 0;
+const uint8_t R_MID_MOTOR_PWM          = 2;
+const uint8_t R_REAR_MOTOR_PWM         = 4;
+const uint8_t BASE_ROTATE_MOTOR_PWM    = 11;
 const uint8_t ARM_ACTUATOR_1_PWM       = 7;
 const uint8_t ARM_ACTUATOR_2_PWM       = 8;
 const uint8_t GRIPPER_MOTOR_PWM        = 9;
 const uint8_t WRIST_ROTATE_MOTOR_PWM   = 10;
-const uint8_t WRIST_ACTUATOR_PWM       = 11;
+const uint8_t WRIST_ACTUATOR_PWM       = 6;
 const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long BRAS_BAUDRATE = 500000;  // For comms with the Braswell chip (arduino_communicator_node)
 const unsigned long TIMEOUT_MS = 5000;   // TODO - actually implement this!
 const byte DEBUG_BYTE         = 248;
 const byte BOARD_STATUS_BYTE  = 249;
@@ -55,12 +55,12 @@ const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
 // SPI constants
 const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
-const uint8_t REQUEST_DELAY_US = 75;
-const uint8_t SEND_DELAY_US    = 9;
+const uint8_t REQUEST_DELAY_US = 100;
+const uint8_t SEND_DELAY_US    = 20;
 const uint8_t REQUEST_ENCODERS = 248;
 const uint8_t SEND_MESSAGE     = 252;
 const uint8_t END_MESSAGE      = 255;
-const uint8_t SPI_MAX_READ_ATTEMPTS = 3;
+const uint8_t SPI_MAX_READ_ATTEMPTS = 1;
 const uint8_t SPI_RX_BUFF_LEN = 64;
 
 // Encoder constants
@@ -255,8 +255,6 @@ void loop() {
             report_error(ENCODER_READ_ERROR);
         }
     }
-
-
 }
 
 // TODO: implement a timeout in case of Serial failure
@@ -452,27 +450,33 @@ void set_wheel_speeds(float wheel_speeds[]) {
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = rover_command_struct.base_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_1_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_1_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_2_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_2_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_actuator_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_actuator_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.gripper_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.gripper_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
 }
