@@ -232,7 +232,7 @@ class BoardInterface:
                 self.serial_conn.write(SERIAL_READY_BYTE)
                 while self.serial_conn.read() != SERIAL_READY_BYTE:
                     if (time.time() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
-                        rospy.logerr("Handshake timed out")
+                        rospy.logerr("Handshake timed out. Try running reset_arduino.py")
                         raise RuntimeError("Handshake timed out")
                     self.serial_conn.write(SERIAL_READY_BYTE)
                     time.sleep(0.1)
