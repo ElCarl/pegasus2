@@ -100,6 +100,7 @@ def interpreter():
     target_vel_pub = rospy.Publisher("rover_target_vel", Twist, queue_size=5)
     arm_command_pub = rospy.Publisher("rover_arm_commands", ArmCommand, queue_size=5)
     rospy.init_node("command_interpreter")
+    rospy.loginfo("Node and publishers initialised")
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
 
     while not rospy.is_shutdown():
@@ -219,6 +220,7 @@ def temp_arm_interpreter(axes, buttons):
 
 def initialise_subscriber():
     rospy.Subscriber("joy", Joy, sub_callback)
+    rospy.loginfo("Subscribed to Joy node")
 
 
 def sub_callback(data):
@@ -232,4 +234,4 @@ if __name__ == "__main__":
         initialise_subscriber()
         interpreter()
     except rospy.ROSInterruptException:
-        pass  
+        pass
