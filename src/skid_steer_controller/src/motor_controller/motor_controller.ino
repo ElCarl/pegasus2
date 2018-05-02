@@ -39,7 +39,7 @@ const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const unsigned long BRAS_BAUDRATE = 500000;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
 const unsigned long TIMEOUT_MS = 5000;   // TODO - actually implement this!
 const byte DEBUG_BYTE         = 248;
 const byte BOARD_STATUS_BYTE  = 249;
@@ -55,12 +55,12 @@ const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
 // SPI constants
 const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
-const uint8_t REQUEST_DELAY_US = 100;
-const uint8_t SEND_DELAY_US    = 20;
+const uint8_t REQUEST_DELAY_US = 75;
+const uint8_t SEND_DELAY_US    = 9;
 const uint8_t REQUEST_ENCODERS = 248;
 const uint8_t SEND_MESSAGE     = 252;
 const uint8_t END_MESSAGE      = 255;
-const uint8_t SPI_MAX_READ_ATTEMPTS = 1;
+const uint8_t SPI_MAX_READ_ATTEMPTS = 3;
 const uint8_t SPI_RX_BUFF_LEN = 64;
 
 // Encoder constants
