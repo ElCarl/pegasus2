@@ -1,0 +1,14 @@
+digraph G {
+"base_footprint" -> "base_link"[label="Broadcaster: /link_base_tf\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1525185982.891 sec old)\nBuffer length: 0.000 sec\n"];
+"base_link" -> "kinect2_link"[label="Broadcaster: /kinect_tf\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1525185982.891 sec old)\nBuffer length: 0.000 sec\n"];
+"map" -> "odom"[label="Broadcaster: /slam_node\nAverage rate: 10000.000 Hz\nMost recent transform: 1525185982.264 ( 0.627 sec old)\nBuffer length: 0.000 sec\n"];
+"base_link" -> "imu_link"[label="Broadcaster: /imu_tf\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1525185982.891 sec old)\nBuffer length: 0.000 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1525185982.891"[ shape=plaintext ] ;
+ }->"base_footprint";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1525185982.891"[ shape=plaintext ] ;
+ }->"map";
+}

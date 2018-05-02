@@ -1,4 +1,4 @@
-image: testmap.png
+image: /home/pegasus/testmap.png
 resolution: 0.05
 origin: [0.0, 0.0, 0.0]
 occupied_thresh: 0.65

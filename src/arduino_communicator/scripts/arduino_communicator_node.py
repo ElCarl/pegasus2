@@ -36,7 +36,7 @@ END_MESSAGE_BYTE = b'\xff'  # FF=255
 
 # Command constants
 COMMAND_STRUCT = {
-    # Not strictly used, but good for comparison
+    # Not strictly used, but good for reference
     "lin_vel": int,
     "ang_vel": int,
     "base_rot": int,
@@ -59,12 +59,12 @@ MAX_SERVO_ANGLE = 180
 # Encoder constants
 NUM_ENCODERS = 7
 ENCODER_MESSAGE_TIMEOUT_MS = 50
-L_FRONT_MOTOR_ENCODER = 1
-L_MID_MOTOR_ENCODER = 2
-L_REAR_MOTOR_ENCODER = 3
-R_FRONT_MOTOR_ENCODER = 7
-R_MID_MOTOR_ENCODER = 6
-R_REAR_MOTOR_ENCODER = 5
+L_FRONT_MOTOR_ENCODER = 5
+L_MID_MOTOR_ENCODER = 6
+L_REAR_MOTOR_ENCODER = 7
+R_FRONT_MOTOR_ENCODER = 3
+R_MID_MOTOR_ENCODER = 2
+R_REAR_MOTOR_ENCODER = 1
 #BASE_ROTATE_MOTOR_ENCODER = 
 #WRIST_ROTATE_MOTOR_ENCODER = 
 GRIPPER_MOTOR_ENCODER = 4
@@ -290,15 +290,15 @@ class BoardInterface:
         if not self.serial_conn:
             rospy.logfatal("Not connected to motor controller board!")
             raise RuntimeError("Motor controller board serial connection does not exist")
-        start_time = time.clock()
+        start_time = time.time()
         connected = False
         while not connected:
             try:
                 # May be needed to ensure that this will actually send a ready byte
                 self.serial_conn.write(SERIAL_READY_BYTE)
                 while self.serial_conn.read() != SERIAL_READY_BYTE:
-                    if (time.clock() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
-                        rospy.logerr("Handshake timed out")
+                    if (time.time() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
+                        rospy.logerr("Handshake timed out. Try running reset_arduino.py")
                         raise RuntimeError("Handshake timed out")
                     self.serial_conn.write(SERIAL_READY_BYTE)
                     time.sleep(0.1)
@@ -351,14 +351,14 @@ class BoardInterface:
             self.read_encoder_data()
         elif rec_byte == BOARD_STATUS_BYTE:
             error_code = ord(self.serial_conn.read())
-            rospy.logwarn(ERROR_CODES[error_code])
+            rospy.logwarn_throttle(2, ERROR_CODES[error_code]);
         elif rec_byte == DEBUG_BYTE:
             msg_len = ord(self.serial_conn.read())
             msg_bytes = self.serial_conn.read(msg_len)
             format_str = "B" * msg_len
             info = [str(c) for c in struct.unpack(format_str, msg_bytes)]
             msg = "Debug msg: " + ";".join(info)
-            rospy.logwarn(msg)
+            rospy.logwarn_throttle(2, msg)
         else:
             val = ord(rec_byte)
             rospy.logerr("Unknown serial message type byte %d "

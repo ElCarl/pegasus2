@@ -44,7 +44,6 @@ if __name__ == '__main__':
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             rate.sleep()
             continue
-	rospy.loginfo("Running...")
 	tr.header.stamp = rospy.Time.now()
 	tr.header.frame_id = "map"
 	tr.child_frame_id = "odom"
@@ -57,7 +56,6 @@ if __name__ == '__main__':
 
 	c = q1 * q2.Inverse()
 	qd = c.GetQuaternion()
-	rospy.loginfo(qd)
 	tr.transform.rotation.x = qd[0]
 	tr.transform.rotation.y = qd[1]
 	tr.transform.rotation.z = qd[2]

@@ -498,27 +498,33 @@ void set_wheel_speeds(float wheel_speeds[]) {
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = rover_command_struct.base_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_1_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_1_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_2_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_2_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_actuator_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_actuator_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.gripper_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.gripper_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
 }

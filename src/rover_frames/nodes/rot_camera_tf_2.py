@@ -15,7 +15,7 @@ if __name__ == '__main__':
     rospy.init_node('dynamic_tf2_broadcaster')
     global orient
     orient = [0.0, 0.0, 0.0, 1.0]
-    rospy.Subscriber("camera_pose", Pose, callback)
+    rospy.Subscriber("camera_pose_2", Pose, callback)
     br = tf2_ros.TransformBroadcaster()
     t = geometry_msgs.msg.TransformStamped()
 
