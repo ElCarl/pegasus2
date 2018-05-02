@@ -132,6 +132,8 @@ class RoverController:
     board_interface = None
     rover_command = None
     encoder_publisher = None
+    yaw_publisher = None
+    pitch_publisher = None
 
     servo_yaw_pos = None
     servo_pitch_pos = None
@@ -147,6 +149,10 @@ class RoverController:
         self.command = RoverCommand()
         self.servo_yaw_pos = 90
         self.servo_pitch_pos = 90
+
+        self.init_encoder_publisher()
+        self.init_servo_publishers()
+
         rospy.loginfo("RoverController instance initialised")
 
     def pass_commands(self):
@@ -233,10 +239,19 @@ class RoverController:
         # Finally, publish the data
         self.encoder_publisher.publish(encoder_counts)
 
+    def publish_camera_angles(self):
+        self.yaw_publisher.publish(self.rover_command.servo_yaw_pos)
+        self.pitch_publisher.publish(self.rover_command.servo_pitch_pos)
+
     def init_encoder_publisher(self):
         self.encoder_publisher = rospy.Publisher("encoder_counts", EncoderCounts,
                                                  queue_size=50)
         rospy.loginfo("encoder_counts publisher initialised")
+
+    def init_servo_publishers(self):
+        self.yaw_publisher = rospy.Publisher("camera_yaw", Float32, queue_size=5)
+        self.pitch_publisher = rospy.Publisher("camera_pitch", Float32, queue_size=5)
+        rospy.loginfo("camera yaw and pitch publishers initialised")
 
 
 class BoardInterface:
@@ -302,9 +317,10 @@ class BoardInterface:
         Writes the desired commands in command_struct to the device
         over serial. The command_struct *must* be the exact same as
         the struct to receive it on the other device!
-        Currently, it is simply 8 bytes:
+        Currently, it is 10 bytes:
         lin_vel, ang_vel, base_rotate, actuator_1_move,
         actuator_2_move, wrist_rotate, wrist_actuator_move, gripper_move
+        servo_yaw, servo_pitch
 
         A command to control the camera servo will most likely be added
         at some point, probably another byte
@@ -360,7 +376,7 @@ class BoardInterface:
 
         # Use the Python struct library to interpret the data
         # '<' enforces little-endianness
-        # L9lB means:
+        # L[n]l means:
         #   L  - one unsigned long (timestamp)
         #   [n]l - [n] signed longs (encoder counts)
         try:
@@ -420,9 +436,6 @@ def main():
     board_interface = BoardInterface()
     rover_controller = RoverController(board_interface, rover_command)
 
-    # Initialise ROS publishers
-    rover_controller.init_encoder_publisher()
-
     # Initialise ROS subscribers
     rospy.Subscriber("rover_target_vel", Twist, rover_command.update_drive_command)
     rospy.Subscriber("rover_arm_commands", ArmCommand, rover_command.update_arm_command)
@@ -439,6 +452,7 @@ def main():
         while not rospy.is_shutdown():
             rover_controller.pass_commands()
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
+            rover_controller.publish_camera_angles()
             rate.sleep()
     except rospy.ROSInterruptException:
         pass
