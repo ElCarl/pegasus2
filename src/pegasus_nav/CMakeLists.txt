@@ -8,8 +8,11 @@ project(pegasus_nav)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  move_base
+  gmapping
+  roscpp
+  rospy
   tf2
+  usb_cam
 )
 
 ## System dependencies are found with CMake's conventions
@@ -101,12 +104,12 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-#catkin_package(
+catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES pegasus_nav
-#  CATKIN_DEPENDS move_base tf2
+#  CATKIN_DEPENDS gmapping roscpp rospy tf2 usb_cam
 #  DEPENDS system_lib
-#)
+)
 
 ###########
 ## Build ##
@@ -116,8 +119,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Your package locations should be listed before other locations
 include_directories(
 # include
-#  ${catkin_INCLUDE_DIRS}
-#  ${OCTOMAP_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -146,10 +148,9 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}
+# target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
-#   ${OCTOMAP_LIBRARIES}
-#)
+# )
 
 #############
 ## Install ##
