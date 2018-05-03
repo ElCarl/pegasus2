@@ -12,7 +12,7 @@
 const bool DEBUG_MODE = 1;
 
 // Physical & electrical constants
-const float ROVER_WHEEL_SEPARATION_M = 0.7;  // Could be replaced with half the separation for convenience?
+const float ROVER_HALF_WHEEL_SEP_M = 0.7;  // Could be replaced with half the separation for convenience?
 const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
 const float ROVER_MAX_SPEED_MPS = 1.2;  // Rover max speed, used to convert controller input to actual speed
@@ -79,7 +79,6 @@ const float WHEEL_KI = 0.1;
 const float WHEEL_KD = 0;
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
-const uint16_t PID_MAX = 4095;  // Currently chosen to simplify translation to setting the PWM
 const uint16_t PID_SAMPLE_TIME_MS = 50;
 
 // SPI constants
@@ -114,8 +113,8 @@ struct ENCODER_DATA_STRUCTURE {
 
 // Define the rover commands data structure
 struct ROVER_COMMAND_DATA_STRUCTURE {
-    uint8_t rover_linear_velocity;
-    uint8_t rover_angular_velocity;
+    uint8_t lin_vel;
+    uint8_t ang_vel;
     uint8_t base_rotation_velocity;
     uint8_t arm_actuator_1_velocity;
     uint8_t arm_actuator_2_velocity;
@@ -136,13 +135,13 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // Structs
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
-ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
+ROVER_COMMAND_DATA_STRUCTURE commands;
 
 // Struct info
 uint8_t * encoder_struct_addr = (uint8_t *)&encoder_counts_struct;
-uint8_t * command_struct_addr = (uint8_t *)&rover_command_struct;
+uint8_t * command_struct_addr = (uint8_t *)&commands;
 uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
-uint8_t command_struct_len = sizeof(rover_command_struct);
+uint8_t command_struct_len = sizeof(commands);
 
 // Encoder stuff
 int32_t lw_encoder_counts[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
@@ -286,12 +285,12 @@ void setup_all_pids() {
         ccc_rr.SetSampleTime(PID_SAMPLE_TIME_MS);
     #endif
 
-    fl_pid.SetOutputLimits(0, PID_MAX);
-    ml_pid.SetOutputLimits(0, PID_MAX);
-    rl_pid.SetOutputLimits(0, PID_MAX);
-    fr_pid.SetOutputLimits(0, PID_MAX);
-    mr_pid.SetOutputLimits(0, PID_MAX);
-    rr_pid.SetOutputLimits(0, PID_MAX);
+    fl_pid.SetOutputLimits(0, 1);
+    ml_pid.SetOutputLimits(0, 1);
+    rl_pid.SetOutputLimits(0, 1);
+    fr_pid.SetOutputLimits(0, 1);
+    mr_pid.SetOutputLimits(0, 1);
+    rr_pid.SetOutputLimits(0, 1);
 
     fl_pid.SetMode(AUTOMATIC);
     ml_pid.SetMode(AUTOMATIC);
@@ -554,15 +553,19 @@ bool read_encoder_counts() {
 }
 
 void set_motor_velocities() {
-    // Do check here for if encoder counts are ok - based on results, switch
-    // between manual and PID control
+    float = 
+
+    left_wheels_desired_vel = commands.lin_vel + (ROVER_HALF_WHEEL_SEP_M * commands.ang_vel);
+    right_wheels_desired_vel = commands.lin_vel - (ROVER_HALF_WHEEL_SEP_M * commands.ang_vel);
+
+    
 }
 
 //void set_motor_velocities() {
 //    // First set rover wheel velocites, linear then angular
 //    float rover_target_velocity[2];
-//    rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
-//    rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
+//    rover_target_velocity[0] = (commands.lin_vel - 100) / 100.0;
+//    rover_target_velocity[1] = (commands.ang_vel - 100) / 100.0;
 //
 //    float wheel_speeds[2];
 //
@@ -609,32 +612,32 @@ void set_motor_velocities() {
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed = (commands.base_rotation_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.arm_actuator_1_velocity - 100) / 100.0;
+    target_speed = (commands.arm_actuator_1_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.arm_actuator_2_velocity - 100) / 100.0;
+    target_speed = (commands.arm_actuator_2_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.wrist_rotation_velocity - 100) / 100.0;
+    target_speed = (commands.wrist_rotation_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.wrist_actuator_velocity - 100) / 100.0;
+    target_speed = (commands.wrist_actuator_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.gripper_velocity - 100) / 100.0;
+    target_speed = (commands.gripper_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
@@ -727,13 +730,13 @@ bool send_encoder_data() {
 }
 
 void zero_all_velocities() {
-    rover_command_struct.rover_linear_velocity = 100;
-    rover_command_struct.rover_angular_velocity = 100;
-    rover_command_struct.base_rotation_velocity = 100;
-    rover_command_struct.arm_actuator_1_velocity = 100;
-    rover_command_struct.arm_actuator_2_velocity = 100;
-    rover_command_struct.wrist_rotation_velocity = 100;
-    rover_command_struct.wrist_actuator_velocity = 100;
-    rover_command_struct.gripper_velocity = 100;
+    commands.lin_vel = 100;
+    commands.ang_vel = 100;
+    commands.base_rotation_velocity = 100;
+    commands.arm_actuator_1_velocity = 100;
+    commands.arm_actuator_2_velocity = 100;
+    commands.wrist_rotation_velocity = 100;
+    commands.wrist_actuator_velocity = 100;
+    commands.gripper_velocity = 100;
 }
 
