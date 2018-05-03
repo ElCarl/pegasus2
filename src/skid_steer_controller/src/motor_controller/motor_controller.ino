@@ -23,12 +23,12 @@ const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addre
 // Encoder constants
 const uint8_t N_ENCS = 9;
 const uint16_t TICKS_PER_WHEEL_REV = 10 * 48;  // Double-check this. 10 per motor turn, then
-const uint8_t FL_ENCODER = 0;                 // 48 per wheel turn
-const uint8_t ML_ENCODER = 1;
-const uint8_t RL_ENCODER = 2;
+const uint8_t FL_ENCODER = 5;                 // 48 per wheel turn
+const uint8_t ML_ENCODER = 6;
+const uint8_t RL_ENCODER = 7;
 const uint8_t FR_ENCODER = 3;
-const uint8_t MR_ENCODER = 4;
-const uint8_t RR_ENCODER = 5;
+const uint8_t MR_ENCODER = 2;
+const uint8_t RR_ENCODER = 1;
 
 // PWM constants
 const uint16_t PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
