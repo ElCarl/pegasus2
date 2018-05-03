@@ -57,7 +57,7 @@ int main(int argc, char **argv)
         ROS_WARN_STREAM("No frame_id provided - default: " << frame_id);
     }
 
-    ros::Publisher imu_pub = nh.advertise<sensor_msgs::Imu>("imu", 1);
+    ros::Publisher imu_pub = nh.advertise<sensor_msgs::Imu>("/imu/data", 1);
 
     // Load the RTIMULib.ini config file
     RTIMUSettings *settings = new RTIMUSettings(calibration_file_path.c_str(),

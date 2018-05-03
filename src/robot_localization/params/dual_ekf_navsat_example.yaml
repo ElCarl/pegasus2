@@ -15,9 +15,9 @@ ekf_se_odom:
   world_frame: odom
 
   odom0: odometry/wheel
-  odom0_config: [false, false, false,
-                 false, false, false,
-                 true,  true,  true,
+  odom0_config: [true,  true,  false,
+                 false, false, true,
+                 true,  true,  false,
                  false, false, true,
                  false, false, false]
   odom0_queue_size: 10
@@ -27,7 +27,7 @@ ekf_se_odom:
 
   imu0: imu/data
   imu0_config: [false, false, false,
-                true,  true,  false,
+                true,  true,  true,
                 false, false, false,
                 true,  true,  true,
                 true,  true,  true]
@@ -36,6 +36,8 @@ ekf_se_odom:
   imu0_relative: false
   imu0_queue_size: 10
   imu0_remove_gravitational_acceleration: true
+  gravitational_acceleration: 9.92023
+  publish_acceleration: true
 
   use_control: false
 
@@ -86,9 +88,9 @@ ekf_se_map:
   world_frame: map
 
   odom0: odometry/wheel
-  odom0_config: [false, false, false,
-                 false, false, false,
-                 true,  true,  true,
+  odom0_config: [true,  true,  false,
+                 false, false, true,
+                 true,  true,  false,
                  false, false, true,
                  false, false, false]
   odom0_queue_size: 10
@@ -97,7 +99,7 @@ ekf_se_map:
   odom0_relative: false
 
   odom1: odometry/gps
-  odom1_config: [true,  true,  false,
+  odom1_config: [true,  true,  true,
                  false, false, false,
                  false, false, false,
                  false, false, false,
@@ -109,7 +111,7 @@ ekf_se_map:
 
   imu0: imu/data
   imu0_config: [false, false, false,
-                true,  true,  false,
+                true,  true,  true,
                 false, false, false,
                 true,  true,  true,
                 true,  true,  true]
@@ -118,6 +120,7 @@ ekf_se_map:
   imu0_relative: false
   imu0_queue_size: 10
   imu0_remove_gravitational_acceleration: true
+  gravitational_acceleration: 9.92023
 
   use_control: false
 
@@ -160,7 +163,7 @@ navsat_transform:
   yaw_offset: 1.570796327  # IMU reads 0 facing magnetic north, not east
   zero_altitude: false
   broadcast_utm_transform: true
-  publish_filtered_gps: true
+  publish_filtered_gps: false
   use_odometry_yaw: false
   wait_for_datum: false
 

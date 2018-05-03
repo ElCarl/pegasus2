@@ -1,15 +1,15 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <SoftwareSerial.h>
 #include <PID_v1.h>
+#include <SPI.h>
 
 // Compilation-affecting defs
 #define CCC_ENABLED 0  // To enable cross-coupled control. 0 disable, 1 enable
 
 // CONSTANTS
 
-// Setup constants
-const bool DEBUG_MODE = 0;
+// Debug constants
+const bool DEBUG_MODE = 1;
 
 // Physical & electrical constants
 const float ROVER_WHEEL_SEPARATION_M = 0.7;  // Could be replaced with half the separation for convenience?
@@ -19,42 +19,47 @@ const float ROVER_MAX_SPEED_MPS = 1.2;  // Rover max speed, used to convert cont
 const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.8 is 80% duty cycle rather than 0.8 m/s
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // {F,M,R}. Some motors may be slower than
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addressing this
+const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
+const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
+
 
 // Encoder constants
-const uint8_t N_ENCS = 9;
-const uint16_t TICKS_PER_WHEEL_REV = 10 * 48;  // Double-check this. 10 per motor turn, then
-const uint8_t FL_ENCODER = 5;                 // 48 per wheel turn
-const uint8_t ML_ENCODER = 6;
-const uint8_t RL_ENCODER = 7;
-const uint8_t FR_ENCODER = 3;
-const uint8_t MR_ENCODER = 2;
-const uint8_t RR_ENCODER = 1;
+const uint8_t N_ENCS = 7;  // 3 wheels each side & the gripper
+const uint8_t FL_ENCODER = 4;
+const uint8_t ML_ENCODER = 5;
+const uint8_t RL_ENCODER = 6;
+const uint8_t FR_ENCODER = 2;
+const uint8_t MR_ENCODER = 1;
+const uint8_t RR_ENCODER = 0;
+const uint8_t ENCODER_READ_RATE_HZ = 20;
+const uint8_t ENCODER_SEND_RATE_HZ = 5;  // Encodometry probably needs less data than PID
+const uint8_t TICKS_PER_MOTOR_REV = 10;  // Check
+const uint16_t TICKS_PER_WHEEL_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GEAR_RATIO;
 
 // PWM constants
-const uint16_t PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is 1600 Hz - unfortunately makes an annoying noise!
-const uint32_t PWM_I2C_CLOCKSPEED = 400000UL;    // I2C "fast" mode @ 400 kHz
+const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is ~1600 Hz - unfortunately makes an annoying noise!
+const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
+const uint8_t L_FRONT_MOTOR_PWM        = 1;
+const uint8_t L_MID_MOTOR_PWM          = 3;
+const uint8_t L_REAR_MOTOR_PWM         = 5;
+const uint8_t R_FRONT_MOTOR_PWM        = 0;
+const uint8_t R_MID_MOTOR_PWM          = 2;
+const uint8_t R_REAR_MOTOR_PWM         = 4;
+const uint8_t BASE_ROTATE_MOTOR_PWM    = 11;
+const uint8_t ARM_ACTUATOR_1_PWM       = 7;
+const uint8_t ARM_ACTUATOR_2_PWM       = 8;
+const uint8_t GRIPPER_MOTOR_PWM        = 9;
+const uint8_t WRIST_ROTATE_MOTOR_PWM   = 10;
+const uint8_t WRIST_ACTUATOR_PWM       = 6;
+const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
+const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t PWM_CHANNELS = 16;
 const uint16_t PWM_TICKS = 4096;
-const uint8_t L_FRONT_MOTOR_PWM      = 0;
-const uint8_t L_MID_MOTOR_PWM        = 2;
-const uint8_t L_REAR_MOTOR_PWM       = 4;
-const uint8_t R_FRONT_MOTOR_PWM      = 1;
-const uint8_t R_MID_MOTOR_PWM        = 3;
-const uint8_t R_REAR_MOTOR_PWM       = 5;
-const uint8_t BASE_ROTATE_MOTOR_PWM  = 6;
-const uint8_t ARM_ACTUATOR_1_PWM     = 7;
-const uint8_t ARM_ACTUATOR_2_PWM     = 8;
-const uint8_t GRIPPER_MOTOR_PWM      = 9;
-const uint8_t WRIST_ROTATE_MOTOR_PWM = 10;
-const uint8_t WRIST_ACTUATOR_PWM     = 11;
-const uint8_t L_MOTOR_PWM_CHANNELS[] = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
-const uint8_t R_MOTOR_PWM_CHANNELS[] = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 
 // Serial constants
-const uint32_t BRAS_BAUDRATE = 38400UL;  // For comms with the Braswell chip (arduino_communicator_node)
-const uint32_t ENC_BAUDRATE  = 38400UL;  // For comms with encoder counter Uno
-const uint8_t SOFTSERIAL_RX_PIN = 2;
-const uint8_t SOFTSERIAL_TX_PIN = 3;
+const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
+const unsigned long TIMEOUT_MS = 5000;   // TODO - actually implement this!
+const byte DEBUG_BYTE         = 248;
 const byte BOARD_STATUS_BYTE  = 249;
 const byte ENCODER_DATA_BYTE  = 250;
 const byte SERIAL_READY_BYTE  = 251;
@@ -63,7 +68,7 @@ const byte ARM_MESSAGE_BYTE   = 253;
 const byte DRIVE_MESSAGE_BYTE = 254;
 const byte END_MESSAGE_BYTE   = 255;
 const uint8_t RX_BUFF_LEN     = 64;
-const uint8_t MAX_ENCODER_READ_ATTEMPTS = 64;
+const uint8_t SERIAL_RX_BUFF_LEN = 64;
 const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
 const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
 
@@ -75,14 +80,33 @@ const float WHEEL_KD = 0;
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
 const uint16_t PID_MAX = 4095;  // Currently chosen to simplify translation to setting the PWM
-const uint16_t PID_SAMPLE_TIME_MS = 100;
+const uint16_t PID_SAMPLE_TIME_MS = 50;
+
+// SPI constants
+const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
+const uint8_t REQUEST_DELAY_US = 75;
+const uint8_t SEND_DELAY_US    = 9;
+const uint8_t REQUEST_ENCODERS = 248;
+const uint8_t SEND_MESSAGE     = 252;
+const uint8_t END_MESSAGE      = 255;
+const uint8_t SPI_MAX_READ_ATTEMPTS = 3;
+const uint8_t SPI_RX_BUFF_LEN = 64;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
 
+// Error codes
+const uint8_t ENCODER_STRUCT_LEN_MISMATCH = 0;
+const uint8_t ENCODER_STRUCT_TOO_LONG = 1;
+const uint8_t ENCODER_CHECKSUM_ERROR = 2;
+const uint8_t ENCODER_READ_ERROR = 3;
+const uint8_t COMMAND_FIND_START_ERROR = 4;
+const uint8_t COMMAND_CHECKSUM_ERROR = 5;
+const uint8_t NO_COMMANDS_ERROR = 6;
+
 // STRUCTS
 
-// Define the RX data structure
+// Define the encoder data structure
 struct ENCODER_DATA_STRUCTURE {
     uint32_t tick_stamp_ms;  // Timestamp of encoder counts in ms since encoder counter arduino started
     int32_t encoder_counts[N_ENCS];
@@ -115,6 +139,8 @@ ENCODER_DATA_STRUCTURE encoder_counts_struct;
 ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
 
 // Struct info
+uint8_t * encoder_struct_addr = (uint8_t *)&encoder_counts_struct;
+uint8_t * command_struct_addr = (uint8_t *)&rover_command_struct;
 uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
 uint8_t command_struct_len = sizeof(rover_command_struct);
 
@@ -145,12 +171,12 @@ double ccc_right_errors[WHEELS_PER_SIDE];
 
 // PID Controllers
 #if CCC_ENABLED
-    PID fl_pid(&lw_est_vels[0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID ml_pid(&lw_est_vels[1], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rl_pid(&lw_est_vels[2], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID mr_pid(&rw_est_vels[1], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rr_pid(&rw_est_vels[2], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
 
     PID ccc_fl(&ccc_left_errors[0], &lw_desired_vels[0], lws_desired_vel);
     PID ccc_ml(&ccc_left_errors[1], &lw_desired_vels[1], lws_desired_vel);
@@ -159,19 +185,18 @@ double ccc_right_errors[WHEELS_PER_SIDE];
     PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], rws_desired_vel);
     PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], rws_desired_vel);
 #else
-    PID fl_pid(&lw_est_vels[0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID ml_pid(&lw_est_vels[1], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rl_pid(&lw_est_vels[2], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID mr_pid(&rw_est_vels[1], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rr_pid(&rw_est_vels[2], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
 #endif
-
-// SoftwareSerial
-SoftwareSerial soft_serial(SOFTSERIAL_RX_PIN, SOFTSERIAL_TX_PIN);
 
 // Timings
 uint32_t last_command_time_ms = 0;
+uint32_t last_encoder_msg_recv_ms = 0;
+uint32_t last_encoder_msg_sent_ms = 0;
 
 
 // MAIN PROGRAM CODE
@@ -199,9 +224,6 @@ void setup() {
     // Wait until Braswell serial is connected before connecting to encoder counter
     while(!Serial);
 
-    // Begin serial connection to encoder counter
-    soft_serial.begin(ENC_BAUDRATE);
-
     // Send the serial ready byte to indicate readiness for data while awaiting
     // readiness confirmation from Braswell chip
     Serial.write(SERIAL_READY_BYTE);
@@ -214,6 +236,9 @@ void setup() {
     enc_count_handshake_time_ms = millis();
     
     setup_all_pids();
+    init_pid_arrays();
+
+    init_spi();
 
     // Once all setup is complete, allow motors to be used
     enable_motors();
@@ -259,8 +284,8 @@ void setup_all_pids() {
         ccc_fr.SetSampleTime(PID_SAMPLE_TIME_MS);
         ccc_mr.SetSampleTime(PID_SAMPLE_TIME_MS);
         ccc_rr.SetSampleTime(PID_SAMPLE_TIME_MS);
-
     #endif
+
     fl_pid.SetOutputLimits(0, PID_MAX);
     ml_pid.SetOutputLimits(0, PID_MAX);
     rl_pid.SetOutputLimits(0, PID_MAX);
@@ -283,6 +308,59 @@ void setup_all_pids() {
     rr_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
 }
 
+// Sets PID related arrays to zero initially. May have issues on boot if encoder
+// counter is reporting nonzero values as it will assume a very high velocity.
+// Probably easier to fix this by just waiting a moment after booting!
+void init_pid_arrays() {
+    for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
+        for (uint8_t j =0; j < ENCODER_HISTORY_LENGTH; j++) {
+            lw_est_vels[i][j] = 0;
+            rw_est_vels[i][j] = 0;
+            lw_encoder_counts[i][j] = 0;
+            rw_encoder_counts[i][j] = 0;
+            lw_encoder_diffs[i][j] = 0;
+            rw_encoder_diffs[i][j] = 0;
+        }
+
+        lw_avg_vels[i] = 0;
+        rw_avg_vels[i] = 0;
+        lw_output[i] = 0;
+        rw_output[i] = 0;
+
+        #if CCC_ENABLED
+            lw_desired_vels[i] = 0;
+            rw_desired_vels[i] = 0;
+            ccc_left_errors[i] = 0;
+            ccc_right_errors[i] = 0;
+        #endif
+    }
+
+    for (uint8_t j = 0; j < ENCODER_HISTORY_LENGTH; j++) {
+        encoder_times[j] = 0;
+        encoder_time_diffs[j] = 0;
+    }
+}
+
+void init_spi() {
+    // Initialise SPI settings
+    SPISettings spi_settings(SPI_CLOCKSPEED_HZ, MSBFIRST, SPI_MODE0);
+
+    // Set pin modes - may not be necessary as they may be set in SPI.begin()
+    pinMode(MISO,  INPUT);  // Master in, slave out
+    pinMode(MOSI, OUTPUT);  // Master out, slave in
+    pinMode(SCK,  OUTPUT);  // Clock
+    pinMode(SS,   OUTPUT);  // Slave select
+
+    // Start with the SPI slave disabled
+    digitalWrite(SS, HIGH);
+
+    SPI.begin();
+
+    // If more SPI devices were added, this could be moved elsewhere
+    // to only be called when needed
+    SPI.beginTransaction(spi_settings);
+}
+
 
 // Loop code
 
@@ -291,8 +369,10 @@ void loop() {
     if (Serial.available() >= command_struct_len + 3) {
         // and if reading them is successful,
         if (read_commands()) {
-            // then set the motor velocities accordingly.
+            // then set the motor and arm velocities accordingly.
             set_motor_velocities();
+            set_arm_velocities();
+
             last_command_time_ms = millis();
         }
         else {
@@ -301,58 +381,40 @@ void loop() {
                 // Set all motor velocities to zero
                 zero_all_velocities();
                 set_motor_velocities();
+                report_error(NO_COMMANDS_ERROR);
             }
         }
         // Else, leave the velocities as they are.
     }
 
-    // If encoder data has been sent (+3 is for BEGIN_MESSAGE_BYTE, struct_len and checksum)
-    if (soft_serial.available() >= encoder_struct_len + 3) {
-        // and if reading them is successful,
+    // Read encoder counts from SPI if enough time has elapsed since the
+    // last successful read
+    if ((millis() - last_encoder_msg_recv_ms) > (1000 / ENCODER_READ_RATE_HZ)) {
         if (read_encoder_counts()) {
-            // then send the encoder data to the Braswell chip.
-            send_encoder_data();
-        }
-        // Else, do not send the data.
-    }
-}
+            // If the read is successful, record the read time
+            last_encoder_msg_recv_ms = millis();
 
-void loop_pid() {
-    // If any movement commands have been sent,
-    if (Serial.available() >= command_struct_len + 3) {
-        // and if reading them is successful,
-        if (read_commands()) {
-            // then remember the time of receiving the command
-            last_command_time_ms = millis();
-        }
-        else {
-            // If we've not got a valid command recently
-            if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
-                // Set all motor velocities to zero
-                zero_all_velocities();
-                set_motor_velocities();
-            }
-        }
-        // Else, leave the velocities as they are.
-    }
-
-    // If encoder data has been sent (+3 is for BEGIN_MESSAGE_BYTE, struct_len and checksum)
-    if (soft_serial.available() >= encoder_struct_len + 3) {
-        // and if reading them is successful,
-        if (read_encoder_counts()) {
-            // then first update wheel velocity estimates
             update_wheel_velocity_estimates();
-            // then send the encoder data to the Braswell chip.
-            send_encoder_data();
+
+            // Send encoder counts over serial if enough time has elapsed since the
+            // last successful send. This data is only sent after successful reads
+            // to ensure only new data is sent
+            if ((millis() - last_encoder_msg_sent_ms) > (1000 / ENCODER_SEND_RATE_HZ)) {
+                if (send_encoder_data()) {
+                    last_encoder_msg_sent_ms = millis();
+                }
+            }
         }
-        // Else, do not send the data.
+        else {
+            report_error(ENCODER_READ_ERROR);
+        }
     }
 }
 
 // TODO: implement a timeout in case of Serial failure
 // Should be short, otherwise the rover will become pretty unresponsive
 bool read_commands() {
-    uint8_t rx_buffer[RX_BUFF_LEN];
+    uint8_t rx_buffer[SERIAL_RX_BUFF_LEN];
 
     uint8_t read_attempts = 0;
 
@@ -360,12 +422,14 @@ bool read_commands() {
     while (Serial.read() != BEGIN_MESSAGE_BYTE) {
         // Unless we don't find it soon enough
         if (read_attempts++ > MAX_COMMAND_READ_ATTEMPTS) {
-            // If we don't, then abandon the message
+            // If we don't find it, then abandon the message after
+            // reporting the failure
+            report_error(COMMAND_FIND_START_ERROR);
             return false;
         }
     }
 
-    // Read message_length of message - should not include checksum!
+    // Read message_length of message, not including checksum
     uint8_t message_length = Serial.read();
 
     // Initialise checksum with message_length
@@ -381,67 +445,111 @@ bool read_commands() {
     // If the checksum was correct
     uint8_t expected_checksum = Serial.read();
     if (checksum == expected_checksum) {
-        // Copy the data across to the command struct
-        memcpy(&rover_command_struct, rx_buffer, message_length);
+        // Then copy the data across to the command struct
+        memcpy(command_struct_addr, rx_buffer, message_length);
         // And return true to indicate success
         return true;
     }
-
-    // Else, ignore the message
-    // And return false to indicate failure
-    if (DEBUG_MODE) {
-        Serial.write(BOARD_STATUS_BYTE);
-        static byte msg[] = "Checksum incorrect";
-        Serial.write(sizeof(msg));
-        Serial.write(msg, sizeof(msg));
+    // Else, report the error and return false to indicate read failure
+    else {
+        report_error(COMMAND_CHECKSUM_ERROR);
+        return false;
     }
-    return false;
 }
 
-// TODO: see above
-// TODO: figure out how to abstract the logic here so that the same function can
-// be used for both Serial and soft_serial reading
-bool read_encoder_counts() {
-    uint8_t checksum;
-    uint8_t rx_buffer[RX_BUFF_LEN];
+void report_error(uint8_t error_code) {
+    // If there isn't room to write the error, just ignore it
+    if (Serial.availableForWrite() < 2) {
+        return;
+    }
+    Serial.write(BOARD_STATUS_BYTE);
+    Serial.write(error_code);
+}
 
+void report_data(uint8_t * data, uint8_t len) {
+    if (Serial.availableForWrite() < len + 2) {
+        return;
+    }
+    Serial.write(DEBUG_BYTE);
+    Serial.write(len);
+    Serial.write(data, len);
+}
+
+bool read_encoder_counts() {
     uint8_t attempts = 0;
     uint32_t count_time = millis();
 
-    // Read until we reach the start of the message
-    while (soft_serial.read() != BEGIN_MESSAGE_BYTE) {
-        // If we don't find the BEGIN_MESSAGE_BYTE in time, abort
-        if (attempts++ > MAX_ENCODER_READ_ATTEMPTS) {
-            return false;
+    // Enable the encoder counter SPI slave
+    digitalWrite(SS, LOW);
+
+    // Limit attempts so it doesn't lock up if disconnected
+    while (attempts++ < SPI_MAX_READ_ATTEMPTS) {
+        // Begin SPI communication
+        SPI.transfer(REQUEST_ENCODERS);
+
+        // Delays allow slave time to process
+        delayMicroseconds(REQUEST_DELAY_US);
+
+        // Read struct length
+        uint8_t recv_struct_len = SPI.transfer(SEND_MESSAGE);
+        delayMicroseconds(SEND_DELAY_US);  // Same as above
+
+        // Check received struct length is as expected
+        if (recv_struct_len != encoder_struct_len) {
+            report_error(ENCODER_STRUCT_LEN_MISMATCH);
+            if (DEBUG_MODE) {
+                uint8_t data[] = {recv_struct_len, encoder_struct_len};
+                report_data(data, sizeof(data));
+            }
+        }
+        // Check received struct length isn't too long for the buffer
+        else if (recv_struct_len > SPI_RX_BUFF_LEN) {
+            report_error(ENCODER_STRUCT_TOO_LONG);
+        }
+        // If both checks pass, read data. This could be refactored
+        // to a separate function
+        else {
+            // Buffer used so that we don't copy bad data into the
+            // encoder counts struct
+            uint8_t rx_buffer[SPI_RX_BUFF_LEN];
+
+            // Checksum initialised with message length
+            uint8_t checksum = encoder_struct_len;
+
+            // Read in each byte of the struct
+            for (uint8_t i = 0; i < encoder_struct_len; i++) {
+                rx_buffer[i] = SPI.transfer(SEND_MESSAGE);
+                delayMicroseconds(SEND_DELAY_US);  // Delay for slave
+
+                // Calculate checksum as we go
+                checksum ^= rx_buffer[i];
+            }
+
+            // Read checksum according to slave
+            uint8_t recv_checksum = SPI.transfer(END_MESSAGE);
+            // If checksum is as expected
+            if (checksum == recv_checksum) {
+                // Copy data from buffer into encoder struct
+                memcpy(encoder_struct_addr, rx_buffer, encoder_struct_len);
+                // Insert the timestamp
+                encoder_counts_struct.tick_stamp_ms = count_time - enc_count_handshake_time_ms;
+                // Disable the encoder counter SPI slave
+                digitalWrite(SS, HIGH);
+                // And return true to indicate successful transfer
+                return true;
+            }
+            // If checksum is wrong, report the error
+            else {
+                report_error(ENCODER_CHECKSUM_ERROR);
+            }
         }
     }
 
-    // Read message_length of message, not including checksum
-    uint8_t message_length = soft_serial.read();
+    // Disable SPI slave
+    digitalWrite(SS, HIGH);
 
-    // Initialise checksum with message_length
-    checksum = message_length;
-
-    // Read each byte into the buffer
-    for (uint8_t b = 0; b < message_length; b++) {
-        rx_buffer[b] = soft_serial.read();
-        // And calculate the checksum as we go
-        checksum ^= rx_buffer[b];
-    }
-
-    // If the checksum is correct
-    if (checksum == soft_serial.read()) {
-        // Copy in the time at the start of the serial message, assumed to be
-        // the same as the encoder time. TODO since we're now using this for control
-        // it might be worthwhile ensuring the encoder count timings are accurate...
-        encoder_counts_struct.tick_stamp_ms = count_time;
-        // Copy the data across to the encoder counts struct
-        memcpy(&encoder_counts_struct, rx_buffer, message_length);
-        // And return true to indicate success
-        return true;
-    }
-    // Else, ignore the message
-    // And return false to indicate failure
+    // If we fail to successfully read a message in the given number of attempts,
+    // return false to indicate failed transfer
     return false;
 }
 
@@ -455,9 +563,6 @@ void set_motor_velocities() {
 
     get_control_outputs(wheel_speeds, rover_target_velocity);
     set_wheel_speeds(wheel_speeds);
-
-    // Then set arm velocities
-    set_arm_velocities();
 }
 
 // Given the desired (normalised) rover target velocity, determine the required
@@ -471,15 +576,6 @@ void get_control_outputs(float control_outputs[], float rover_target_velocity[])
 
     // Right wheel velocity is sum of linear and angular velocities
     control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-
-    // Find largest absolute control value
-    float max_control;
-    if (abs(control_outputs[0]) > abs(control_outputs[1])) {
-        max_control = abs(control_outputs[0]);
-    }
-    else {
-        max_control = abs(control_outputs[1]);
-    }
 
     // Scale outputs to be within the stated limits
     control_outputs[0] *= MOTOR_MAX_SPEED;
@@ -504,30 +600,37 @@ void set_wheel_speeds(float wheel_speeds[]) {
     }
 }
 
+// TODO I'm sure this can be neatened up
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = rover_command_struct.base_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_1_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_1_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.arm_actuator_2_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.arm_actuator_2_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_rotation_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.wrist_actuator_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.wrist_actuator_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = rover_command_struct.gripper_velocity * MOTOR_MAX_SPEED;
+    target_speed = (rover_command_struct.gripper_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
 }
@@ -543,10 +646,10 @@ void update_wheel_velocity_estimates() {
     // Initial update of avg velocities
     float distance_m;
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
-        distance_m = lw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * (WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV);
+        distance_m = lw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
         lw_avg_vels[wheel] -= distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
 
-        distance_m = rw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * (WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV);
+        distance_m = rw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
         rw_avg_vels[wheel] -= distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
     }
     
@@ -589,29 +692,33 @@ void update_wheel_velocity_estimates() {
     }
 }
 
-void send_encoder_data() {
+bool send_encoder_data() {
+    // Check if there is space in the buffer to write
+    if (Serial.availableForWrite() < encoder_struct_len + 3) {
+        // Indicate failure if there isn't
+        return false;
+    }
+
+    // Indicate that we are sending encoder data back
     Serial.write(ENCODER_DATA_BYTE);
 
-    uint8_t struct_len = sizeof(encoder_counts_struct);
-
-    // Set the timestamp
-    encoder_counts_struct.tick_stamp_ms = millis();
-
     // Initialise the checksum with the message length
+    uint8_t struct_len = encoder_struct_len;
     uint8_t checksum = struct_len;
 
     // Send the message length
     Serial.write(struct_len);
 
     // Write the whole struct to serial, calculating checksum as we go
-    uint8_t * struct_ptr = (uint8_t *)&encoder_counts_struct;
     for (uint8_t b = 0; b < struct_len; b++) {
-        Serial.write(*(struct_ptr + b));
-        checksum ^= *(struct_ptr + b);
+        Serial.write(*(encoder_struct_addr + b));
+        checksum ^= *(encoder_struct_addr + b);
     }
 
     // Then write the checksum
     Serial.write(checksum);
+
+    return true;
 }
 
 void zero_all_velocities() {

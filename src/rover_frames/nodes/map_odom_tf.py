@@ -8,19 +8,19 @@ import geometry_msgs.msg
 import sensor_msgs.msg
 
 def map_base_gps_tf(data):
-    location = [38.55, -110.744, 1320] #[data.latitude, data.longitude, data.altitude]
+    location = [data.latitude, data.longitude, data.altitude]
     start_point = [38.373, -110.714, 1309]
-    self.dloc[0] = location[0] - start_point[0]
-    self.dloc[1] = location[1] - start_point[1]
-    self.dloc[2] = location[2] - start_point[2]
+    dloc[0] = location[0] - start_point[0]
+    dloc[1] = location[1] - start_point[1]
+    dloc[2] = location[2] - start_point[2]
 
 def map_base_imu_tf(data):
-    orientation = [0.0, 0.0, 0.0, 1.0] #data.orientation
+    orientation = data.orientation
     start = [0.0, 0.0, 0.0, 1.0]
-    self.dor[0] = orientation[0] - start[0]
-    self.dor[1] = orientation[1] - start[1]
-    self.dor[2] = orientation[2] - start[2]
-    self.dor[3] = orientation[3] - start[3]
+    dor[0] = orientation[0] - start[0]
+    dor[1] = orientation[1] - start[1]
+    dor[2] = orientation[2] - start[2]
+    dor[3] = orientation[3] - start[3]
 
 if __name__ == '__main__':
     rospy.init_node('map_odom_tf')
@@ -44,7 +44,6 @@ if __name__ == '__main__':
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             rate.sleep()
             continue
-	rospy.loginfo("Running...")
 	tr.header.stamp = rospy.Time.now()
 	tr.header.frame_id = "map"
 	tr.child_frame_id = "odom"
@@ -57,7 +56,6 @@ if __name__ == '__main__':
 
 	c = q1 * q2.Inverse()
 	qd = c.GetQuaternion()
-	rospy.loginfo(qd)
 	tr.transform.rotation.x = qd[0]
 	tr.transform.rotation.y = qd[1]
 	tr.transform.rotation.z = qd[2]
