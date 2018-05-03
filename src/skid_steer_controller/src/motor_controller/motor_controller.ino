@@ -554,51 +554,56 @@ bool read_encoder_counts() {
 }
 
 void set_motor_velocities() {
-    // First set rover wheel velocites, linear then angular
-    float rover_target_velocity[2];
-    rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
-    rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
-
-    float wheel_speeds[2];
-
-    get_control_outputs(wheel_speeds, rover_target_velocity);
-    set_wheel_speeds(wheel_speeds);
+    // Do check here for if encoder counts are ok - based on results, switch
+    // between manual and PID control
 }
 
-// Given the desired (normalised) rover target velocity, determine the required
-// (normalised) velocity for each set of wheels
-void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
-    // control_outputs returns the desired motor speed for left and right sides
-    // rover_target_velocity should have a linear and an angular velocity component
-
-    // Left wheel velocity is difference of linear and angular velocities
-    control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
-
-    // Right wheel velocity is sum of linear and angular velocities
-    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-
-    // Scale outputs to be within the stated limits
-    control_outputs[0] *= MOTOR_MAX_SPEED;
-    control_outputs[1] *= MOTOR_MAX_SPEED;
-}
-
-void set_wheel_speeds(float wheel_speeds[]) {
-    // wheel_speeds is a float array: {left_wheels_relative_speed, right_wheels_relative_speed}
-    uint8_t wheel_num;
-    float duty_cycle, target_wheel_speed;
-
-    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
-        // Left wheel first
-        target_wheel_speed = wheel_speeds[0] * L_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-        duty_cycle = 0.5 * (1 + target_wheel_speed);
-        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-
-        // Then right wheel
-        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-        duty_cycle = 0.5 * (1 + target_wheel_speed);
-        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-    }
-}
+//void set_motor_velocities() {
+//    // First set rover wheel velocites, linear then angular
+//    float rover_target_velocity[2];
+//    rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
+//    rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
+//
+//    float wheel_speeds[2];
+//
+//    get_control_outputs(wheel_speeds, rover_target_velocity);
+//    set_wheel_speeds(wheel_speeds);
+//}
+//
+//// Given the desired (normalised) rover target velocity, determine the required
+//// (normalised) velocity for each set of wheels
+//void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
+//    // control_outputs returns the desired motor speed for left and right sides
+//    // rover_target_velocity should have a linear and an angular velocity component
+//
+//    // Left wheel velocity is difference of linear and angular velocities
+//    control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
+//
+//    // Right wheel velocity is sum of linear and angular velocities
+//    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
+//
+//    // Scale outputs to be within the stated limits
+//    control_outputs[0] *= MOTOR_MAX_SPEED;
+//    control_outputs[1] *= MOTOR_MAX_SPEED;
+//}
+//
+//void set_wheel_speeds(float wheel_speeds[]) {
+//    // wheel_speeds is a float array: {left_wheels_relative_speed, right_wheels_relative_speed}
+//    uint8_t wheel_num;
+//    float duty_cycle, target_wheel_speed;
+//
+//    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
+//        // Left wheel first
+//        target_wheel_speed = wheel_speeds[0] * L_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
+//        duty_cycle = 0.5 * (1 + target_wheel_speed);
+//        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+//
+//        // Then right wheel
+//        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
+//        duty_cycle = 0.5 * (1 + target_wheel_speed);
+//        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+//    }
+//}
 
 // TODO I'm sure this can be neatened up
 void set_arm_velocities() {
