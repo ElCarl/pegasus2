@@ -118,12 +118,12 @@ class RoverCommand:
 
     def update_yaw_command(self, yaw_topic_data):
         dt = time.time() - self.last_servo_update_time
-        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * yaw_topic_data
+        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(yaw_topic_data)
         self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
 
     def update_pitch_command(self, pitch_topic_data):
         dt = time.time() - self.last_servo_update_time
-        self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * pitch_topic_data
+        self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * float(pitch_topic_data)
         self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
 
 
