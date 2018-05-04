@@ -88,7 +88,8 @@ class RoverCommand:
     arm_command = None
     servo_yaw_pos = None
     servo_pitch_pos = None
-    last_servo_update_time = None
+    last_yaw_servo_update_time = None
+    last_pitch_servo_update_time = None
 
     def __init__(self):
         # Initialise drive and arm commands with zeros
@@ -98,7 +99,8 @@ class RoverCommand:
         self.servo_pitch_rate = Float32(0)
         self.servo_yaw_pos = 90
         self.servo_pitch_pos = 90
-        self.last_servo_update_time = time.time()
+        self.last_yaw_servo_update_time = time.time()
+        self.last_pitch_servo_update_time = time.time()
 
     def update_drive_command(self, vel_topic_data):
         """
@@ -119,20 +121,16 @@ class RoverCommand:
     def update_yaw_command(self, yaw_topic_data):
         dt = time.time() - self.last_servo_update_time
         val = yaw_topic_data.data
-        if yaw_topic_data is not None:
-            self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(val)
-            self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
-        else:
-            rospy.logerr_throttle(2, "yaw_topic_data is None")
+        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(val)
+        self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        self.last_yaw_servo_update_time = time.time()
 
     def update_pitch_command(self, pitch_topic_data):
         dt = time.time() - self.last_servo_update_time
         val = pitch_topic_data.data
-        if pitch_topic_data is not None:
-            self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * val
-            self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
-        else:
-            rospy.logerr_throttle(2, "pitch_topic_data is None")
+        self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * val
+        self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        self.last_pitch_servo_update_time = time.time()
 
 
 class RoverController:
