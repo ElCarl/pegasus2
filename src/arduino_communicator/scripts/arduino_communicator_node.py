@@ -52,7 +52,7 @@ COMMAND_STRUCT_LEN = len(COMMAND_STRUCT)
 COMMAND_STRUCT_FORMAT = "<{}B".format(COMMAND_STRUCT_LEN)  # Only valid when all commands are bytes
 
 # Servo constants
-MAX_SERVO_SPEED_DPS = 30
+MAX_SERVO_SPEED_DPS = 1
 MIN_SERVO_ANGLE = 0
 MAX_SERVO_ANGLE = 180
 
