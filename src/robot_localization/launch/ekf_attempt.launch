@@ -2,10 +2,17 @@
 
   <rosparam command="load" file="$(find robot_localization)/params/ekf_attempt.yaml" />
 
+  <node name="gps_conv" pkg="gps_common" type="utm_odometry_node" output="screen">
+  	<remap from="odom" to="/odometry/gps"/>
+  	<remap from="fix" to="/gps/fix" />
+  	<param name="rot_covariance" value="99999" />
+  	<param name="frame_id" value="map" />
+  </node>
+
   <node pkg="robot_localization" type="ekf_localization_node" name="ekf_se_odom" clear_params="true">
 	<remap from="odometry/filtered" to="odometry/filtered_final"/>
   </node>
 
-  <node pkg="robot_localization" type="navsat_transform_node" name="navsat_transform" clear_params="true"/>
+  <!--node pkg="robot_localization" type="navsat_transform_node" name="navsat_transform" clear_params="true"/-->
 
 </launch>

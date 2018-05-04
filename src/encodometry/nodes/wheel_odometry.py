@@ -64,9 +64,9 @@ class odometry_node:
 		leftFTravel = self.leftFEncoder.getDelta() / self.ticksPerMeter
 		leftMTravel = self.leftMEncoder.getDelta() / self.ticksPerMeter
 		leftRTravel = self.leftREncoder.getDelta() / self.ticksPerMeter
-		rightFTravel = self.rightFEncoder.getDelta() / self.ticksPerMeter
-		rightMTravel = self.rightMEncoder.getDelta() / self.ticksPerMeter
-		rightRTravel = self.rightREncoder.getDelta() / self.ticksPerMeter
+		rightFTravel = -1*(self.rightFEncoder.getDelta() / self.ticksPerMeter)
+		rightMTravel = -1*(self.rightMEncoder.getDelta() / self.ticksPerMeter)
+		rightRTravel = -1*(self.rightREncoder.getDelta() / self.ticksPerMeter)
 		#time stuff
 		newTime = rospy.get_time()
 		deltaTime = newTime - self.lastTime

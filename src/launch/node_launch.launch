@@ -3,24 +3,20 @@
 	<node pkg="arduino_communicator" name="arduino_communicator" type="arduino_communicator_node.py">
 	</node>
 
-	<node pkg="controller_interpreter" name="controller_interpreter" type="controller_interpreter_node.py">
-	</node>
-
 	<include file="$(find rover_frames)/launch/frames.launch"/>
 
 	<node pkg="encodometry" type="wheel_odometry.py" name="encoder_noder"/>
-	<node pkg="encodometry" type="test.py" name="test_encoder_data"/>
 	
 	<node pkg="nmea_navsat_driver" name="nmea_serial_driver" type="nmea_serial_driver">
 		<param name="port" value="/dev/ttyS4"/>
         	<param name="baud" value="9600"/>
 	</node>
 
-    	<node pkg="rtimulib_ros" type="rtimulib_ros" name="rtimulib_node" output="screen">
-        	<param name="calibration_file_path" value="$(find rtimulib_ros)/config"/>
-        	<param name="calibration_file_name" value="RTIMULib"/>
-        	<param name="frame_id" value="imu_link"/>
-    	</node>
+    	<!--node pkg="rtimulib_ros" type="rtimulib_ros" name="rtimulib_node" output="screen"-->
+        	<!--param name="calibration_file_path" value="$(find rtimulib_ros)/config"/-->
+        	<!--param name="calibration_file_name" value="RTIMULib"/-->
+        	<!--param name="frame_id" value="imu_link"/-->
+    	<!--/node-->
 
 	<node pkg="joy" name="joy_node" type="joy_node">
 	</node>	

@@ -4,18 +4,18 @@ import tf2_ros
 from tf.msg import tfMessage
 from tf.transformations import quaternion_from_euler
 import geometry_msgs.msg
-from geometry_msgs.msg import Pose
+from std_msgs.msg import Float32
 import math
 
 def callback(data):
 	global orient
-        orient = data.orientation
+        orient = quaternion_from_euler(0, data, 0)
 
 if __name__ == '__main__':
     rospy.init_node('dynamic_tf2_broadcaster')
     global orient
     orient = [0.0, 0.0, 0.0, 1.0]
-    rospy.Subscriber("camera_pose_2", Pose, callback)
+    rospy.Subscriber("camera_pitch", Float32, callback)
     br = tf2_ros.TransformBroadcaster()
     t = geometry_msgs.msg.TransformStamped()
 
