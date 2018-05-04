@@ -94,8 +94,8 @@ class RoverCommand:
         # Initialise drive and arm commands with zeros
         self.drive_command = Twist()
         self.arm_command = ArmCommand()
-        self.servo_yaw_rate = Float32()
-        self.servo_pitch_rate = Float32()
+        self.servo_yaw_rate = Float32(0)
+        self.servo_pitch_rate = Float32(0)
         self.servo_yaw_pos = 90
         self.servo_pitch_pos = 90
         self.last_servo_update_time = time.time()
@@ -118,13 +118,19 @@ class RoverCommand:
 
     def update_yaw_command(self, yaw_topic_data):
         dt = time.time() - self.last_servo_update_time
-        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(yaw_topic_data)
-        self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        if yaw_topic_data is not None:
+            self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(yaw_topic_data)
+            self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        else:
+            rospy.logerr_throttle(2, "yaw_topic_data is None")
 
     def update_pitch_command(self, pitch_topic_data):
         dt = time.time() - self.last_servo_update_time
-        self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * float(pitch_topic_data)
-        self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        if pitch_topic_data is not None:
+            self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * float(pitch_topic_data)
+            self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        else:
+            rospy.logerr_throttle(2, "pitch_topic_data is None")
 
 
 class RoverController:
