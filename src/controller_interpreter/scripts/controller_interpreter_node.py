@@ -188,8 +188,8 @@ def arm_interpreter(axes, buttons):
     gripper_input = gripper_open_input - gripper_close_input
 
     # [command] * 0.5 * (1 + boost_input) halves command speed when boost button is not pressed
-    commands["linear_velocity"] = 0.1 * slow_linear_input * 0.5 * (1 + boost_input)
-    commands["angular_velocity"] = 0.1 * slow_angular_input * 0.5 * (1 + boost_input)
+    commands["linear_velocity"] = 0.2 * slow_linear_input * 0.5 * (1 + boost_input)
+    commands["angular_velocity"] = 0.2 * slow_angular_input * 0.5 * (1 + boost_input)
     commands["base_rotation_velocity"]  = base_rotation_input  * 0.5 * (1 + boost_input)
     commands["arm_actuator_1_velocity"] = arm_actuator_1_input * 0.5 * (1 + boost_input)
     commands["arm_actuator_2_velocity"] = arm_actuator_2_input * 0.5 * (1 + boost_input)
