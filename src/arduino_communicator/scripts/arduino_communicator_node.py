@@ -119,6 +119,8 @@ class RoverCommand:
     def update_yaw_command(self, yaw_topic_data):
         dt = time.time() - self.last_servo_update_time
         if yaw_topic_data is not None:
+            print(yaw_topic_data)
+            print(type(yaw_topic_data))
             self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(yaw_topic_data)
             self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
         else:
@@ -127,6 +129,8 @@ class RoverCommand:
     def update_pitch_command(self, pitch_topic_data):
         dt = time.time() - self.last_servo_update_time
         if pitch_topic_data is not None:
+            print(pitch_topic_data)
+            print(type(pitch_topic_data))
             self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * float(pitch_topic_data)
             self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
         else:
