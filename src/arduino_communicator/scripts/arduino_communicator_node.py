@@ -119,14 +119,14 @@ class RoverCommand:
         rospy.logdebug("updated arm command")
 
     def update_yaw_command(self, yaw_topic_data):
-        dt = time.time() - self.last_servo_update_time
+        dt = time.time() - self.last_yaw_servo_update_time
         val = yaw_topic_data.data
-        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * float(val)
+        self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * val
         self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
         self.last_yaw_servo_update_time = time.time()
 
     def update_pitch_command(self, pitch_topic_data):
-        dt = time.time() - self.last_servo_update_time
+        dt = time.time() - self.last_pitch_servo_update_time
         val = pitch_topic_data.data
         self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * val
         self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
