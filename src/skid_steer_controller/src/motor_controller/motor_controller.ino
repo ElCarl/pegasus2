@@ -13,15 +13,14 @@ const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.7 is 70% duty cycle rat
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
 const uint8_t WHEELS_PER_SIDE = 3;
-const uint8_t N_ENCS = 7;
-const float ROVER_LENGTH_M = 0.9; // Guess for now
-const float ROVER_WIDTH_M = 0.7;  // ditto
-const float WHEEL_CIRCUMF_M = 0.6283; // Measure for accuracy, but drift will mess this up anyway
+const uint8_t N_ENCS = 9;
+const float ROVER_LENGTH_M  = 0.9;
+const float ROVER_WIDTH_M   = 0.674;
+const float WHEEL_CIRCUMF_M = 0.638;
 const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
 const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
 
 // PWM constants
-const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is ~1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
 const uint8_t L_FRONT_MOTOR_PWM        = 10;
 const uint8_t L_MID_MOTOR_PWM          = 8;
@@ -37,6 +36,28 @@ const uint8_t WRIST_ROTATE_MOTOR_PWM   = 1;
 const uint8_t WRIST_ACTUATOR_PWM       = 3;
 const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
+
+// General PWM constants
+const uint8_t PWM_CHANNELS = 16;
+const unsigned int PWM_TICKS = 4096;
+
+// Motor board PWM constants
+const uint16_t MOTOR_PWM_BOARD_FREQ_HZ = 1600;  // Max freq of PWM board is ~1.6kHz - makes an annoying noise!
+
+// Servo board PWM constants
+const uint16_t SERVO_PWM_BOARD_FREQ_HZ = 60;
+const uint8_t CAMERA_YAW_PWM = 0;
+const uint8_t CAMERA_PITCH_PWM = 1;
+
+// Camera servo constants
+const uint8_t SERVO_MIN_YAW_DEG = 0;
+const uint8_t SERVO_MAX_YAW_DEG = 0;
+const uint8_t SERVO_MIN_PITCH_DEG = 0;
+const uint8_t SERVO_MAX_PITCH_DEG = 0;
+const uint16_t YAW_SERVO_MIN_TICK = 102;
+const uint16_t YAW_SERVO_MAX_TICK = 512;
+const uint16_t PITCH_SERVO_MIN_TICK = 102;
+const uint16_t PITCH_SERVO_MAX_TICK = 512;
 
 // Serial constants
 const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
@@ -71,8 +92,6 @@ const uint16_t TICKS_PER_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GE
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
-const uint8_t PWM_CHANNELS = 16;
-const unsigned int PWM_TICKS = 4096;
 
 // Error codes
 const uint8_t ENCODER_STRUCT_LEN_MISMATCH = 0;
@@ -101,6 +120,8 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t wrist_rotation_velocity;
     uint8_t wrist_actuator_velocity;
     uint8_t gripper_velocity;
+    uint8_t yaw_servo_position_deg;
+    uint8_t pitch_servo_position_deg;
 };
 
 
@@ -111,8 +132,9 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
 uint32_t enc_count_handshake_time_ms;
 uint32_t handshake_offset_ms;
 
-// PWM board object
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+// PWM board objects
+Adafruit_PWMServoDriver motor_pwm = Adafruit_PWMServoDriver();  // Defaults to 0x40
+Adafruit_PWMServoDriver servo_pwm = Adafruit_PWMServoDriver(0x41);
 
 // Structs
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
@@ -142,12 +164,7 @@ void setup() {
     // While setting up, ensure motors cannot be used
     disable_motors();
 
-    // Begin PWM
-    pwm.begin();
-    pwm.setPWMFreq(PWM_BOARD_FREQUENCY);
-    Wire.setClock(PWM_I2C_CLOCKSPEED);  // Sets the I2C bus speed
-
-    // Start PWM with all motors stationary
+    // Start PWMs with all motors stationary and servos at 90 degrees
     init_pwm();
 
     // Begin serial connection to Braswell
@@ -186,9 +203,26 @@ void enable_motors() {
 }
 
 void init_pwm() {
+    // Begin PWM
+    motor_pwm.begin();
+    servo_pwm.begin();
+
+    motor_pwm.setPWMFreq(MOTOR_PWM_BOARD_FREQ_HZ);
+    servo_pwm.setPWMFreq(SERVO_PWM_BOARD_FREQ_HZ);
+
+    // Set the I2C bus speed
+    Wire.setClock(PWM_I2C_CLOCKSPEED);
+
+    // Set PWM for motors to 50% which stops motors
     for (uint8_t pwm_num = 0; pwm_num < PWM_CHANNELS; pwm_num++) {
-        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which stops motors
+        motor_pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);
     }
+
+    // Set PWM for servos to 90 degrees
+    uint16_t yaw_tick = map(90, 0, 180, YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
+    uint16_t pitch_tick = map(90, 0, 180, PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
+    servo_pwm.setPWM(CAMERA_YAW_PWM, 0, yaw_tick);
+    servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
 }
 
 void init_spi() {
@@ -221,13 +255,14 @@ void loop() {
         if (read_commands()) {
             // then set the motor velocities accordingly.
             set_motor_velocities();
+            set_servo_positions();
             last_command_time_ms = millis();
         }
         else {
             // If we've not got a valid command recently
             if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
                 // Set all motor velocities to zero
-                zero_all_velocities();
+                set_commands_default();
                 set_motor_velocities();
                 report_error(NO_COMMANDS_ERROR);
             }
@@ -411,6 +446,20 @@ void set_motor_velocities() {
     set_arm_velocities();
 }
 
+void set_servo_positions() {
+    // Need to convert from desired position in degrees to required
+    // pwm parameters
+    uint16_t yaw_tick   = map(rover_command_struct.yaw_servo_position_deg,
+                              0, 180,
+                              YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
+    uint16_t pitch_tick = map(rover_command_struct.pitch_servo_position_deg,
+                              0, 180,
+                              PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
+
+    servo_pwm.setPWM(CAMERA_YAW_PWM, 0, yaw_tick);
+    servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
+}
+
 // Given the desired (normalised) rover target velocity, determine the required
 // (normalised) velocity for each set of wheels
 void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
@@ -482,7 +531,7 @@ void set_arm_velocities() {
 }
 
 void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
-    pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
+    motor_pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
 }
 
 bool send_encoder_data() {
@@ -514,7 +563,7 @@ bool send_encoder_data() {
     return true;
 }
 
-void zero_all_velocities() {
+void set_commands_default() {
     rover_command_struct.rover_linear_velocity = 100;
     rover_command_struct.rover_angular_velocity = 100;
     rover_command_struct.base_rotation_velocity = 100;
@@ -523,5 +572,7 @@ void zero_all_velocities() {
     rover_command_struct.wrist_rotation_velocity = 100;
     rover_command_struct.wrist_actuator_velocity = 100;
     rover_command_struct.gripper_velocity = 100;
+    rover_command_struct.yaw_servo_position_deg = 90;
+    rover_command_struct.pitch_servo_position_deg = 90;
 }
 
