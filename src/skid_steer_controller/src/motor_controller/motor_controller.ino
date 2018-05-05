@@ -12,11 +12,12 @@
 const bool DEBUG_MODE = 1;
 
 // Physical & electrical constants
-const float ROVER_HALF_WHEEL_SEP_M = 0.7;  // Could be replaced with half the separation for convenience?
+const float ROVER_HALF_WHEEL_SEP_M = 0.35;  // Could be replaced with half the separation for convenience?
 const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
-const float ROVER_MAX_SPEED_MPS = 1.2;  // Rover max speed, used to convert controller input to actual speed
-const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.8 is 80% duty cycle rather than 0.8 m/s
+const float ROVER_MAX_LIN_SPEED_MPS = 1.2;  // Rover max linear speed, used to convert controller input to actual speed
+const float ROVER_MAX_ANG_SPEED_RPS = 0.3;  // Rover max angular speed
+const float MOTOR_MAX_DUTY_CYCLE = 0.8;  // Normalised - so 0.8 is 80% duty cycle rather than 0.8 m/s
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // {F,M,R}. Some motors may be slower than
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addressing this
 const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
@@ -37,24 +38,45 @@ const uint8_t TICKS_PER_MOTOR_REV = 10;  // Check
 const uint16_t TICKS_PER_WHEEL_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GEAR_RATIO;
 
 // PWM constants
-const unsigned int PWM_BOARD_FREQUENCY = 1600;  // Max supported freq of current PWM board is ~1600 Hz - unfortunately makes an annoying noise!
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
-const uint8_t L_FRONT_MOTOR_PWM        = 1;
-const uint8_t L_MID_MOTOR_PWM          = 3;
-const uint8_t L_REAR_MOTOR_PWM         = 5;
-const uint8_t R_FRONT_MOTOR_PWM        = 0;
-const uint8_t R_MID_MOTOR_PWM          = 2;
-const uint8_t R_REAR_MOTOR_PWM         = 4;
-const uint8_t BASE_ROTATE_MOTOR_PWM    = 11;
-const uint8_t ARM_ACTUATOR_1_PWM       = 7;
-const uint8_t ARM_ACTUATOR_2_PWM       = 8;
-const uint8_t GRIPPER_MOTOR_PWM        = 9;
-const uint8_t WRIST_ROTATE_MOTOR_PWM   = 10;
-const uint8_t WRIST_ACTUATOR_PWM       = 6;
+const uint8_t L_FRONT_MOTOR_PWM        = 10;
+const uint8_t L_MID_MOTOR_PWM          = 8;
+const uint8_t L_REAR_MOTOR_PWM         = 6;
+const uint8_t R_FRONT_MOTOR_PWM        = 11;
+const uint8_t R_MID_MOTOR_PWM          = 9;
+const uint8_t R_REAR_MOTOR_PWM         = 7;
+const uint8_t BASE_ROTATE_MOTOR_PWM    = 2;
+const uint8_t ARM_ACTUATOR_1_PWM       = 5;
+const uint8_t ARM_ACTUATOR_2_PWM       = 4;
+const uint8_t GRIPPER_MOTOR_PWM        = 0;
+const uint8_t WRIST_ROTATE_MOTOR_PWM   = 1;
+const uint8_t WRIST_ACTUATOR_PWM       = 3;
 const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t PWM_CHANNELS = 16;
 const uint16_t PWM_TICKS = 4096;
+
+// General PWM constants
+const uint8_t PWM_CHANNELS = 16;
+const unsigned int PWM_TICKS = 4096;
+
+// Motor board PWM constants
+const uint16_t MOTOR_PWM_BOARD_FREQ_HZ = 1600;  // Max freq of PWM board is ~1.6kHz - makes an annoying noise!
+
+// Servo board PWM constants
+const uint16_t SERVO_PWM_BOARD_FREQ_HZ = 60;
+const uint8_t CAMERA_YAW_PWM = 0;
+const uint8_t CAMERA_PITCH_PWM = 1;
+
+// Camera servo constants
+const uint8_t SERVO_MIN_YAW_DEG = 0;
+const uint8_t SERVO_MAX_YAW_DEG = 0;
+const uint8_t SERVO_MIN_PITCH_DEG = 0;
+const uint8_t SERVO_MAX_PITCH_DEG = 0;
+const uint16_t YAW_SERVO_MIN_TICK = 102;
+const uint16_t YAW_SERVO_MAX_TICK = 512;
+const uint16_t PITCH_SERVO_MIN_TICK = 102;
+const uint16_t PITCH_SERVO_MAX_TICK = 512;
 
 // Serial constants
 const unsigned long BRAS_BAUDRATE = 1000000;  // For comms with the Braswell chip (arduino_communicator_node)
@@ -121,6 +143,8 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t wrist_rotation_velocity;
     uint8_t wrist_actuator_velocity;
     uint8_t gripper_velocity;
+    uint8_t yaw_servo_position_deg;
+    uint8_t pitch_servo_position_deg;
 };
 
 
@@ -130,8 +154,9 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
 uint32_t enc_count_handshake_time_ms;
 uint32_t handshake_offset_ms;
 
-// PWM board object
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+// PWM board objects
+Adafruit_PWMServoDriver motor_pwm = Adafruit_PWMServoDriver();  // Defaults to 0x40
+Adafruit_PWMServoDriver servo_pwm = Adafruit_PWMServoDriver(0x41);
 
 // Structs
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
@@ -173,23 +198,23 @@ double ccc_right_errors[WHEELS_PER_SIDE];
     PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
     PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
     PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
 
-    PID ccc_fl(&ccc_left_errors[0], &lw_desired_vels[0], lws_desired_vel);
-    PID ccc_ml(&ccc_left_errors[1], &lw_desired_vels[1], lws_desired_vel);
-    PID ccc_rl(&ccc_left_errors[2], &lw_desired_vels[2], lws_desired_vel);
-    PID ccc_fr(&ccc_right_errors[0], &rw_desired_vels[0], rws_desired_vel);
-    PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], rws_desired_vel);
-    PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], rws_desired_vel);
+    PID ccc_fl(&ccc_left_errors[0], &lw_desired_vels[0], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_ml(&ccc_left_errors[1], &lw_desired_vels[1], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_rl(&ccc_left_errors[2], &lw_desired_vels[2], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_fr(&ccc_right_errors[0], &rw_desired_vels[0], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
 #else
     PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
     PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
     PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
 #endif
 
 // Timings
@@ -209,12 +234,7 @@ void setup() {
     // While setting up, ensure motors cannot be used
     disable_motors();
 
-    // Begin PWM
-    pwm.begin();
-    pwm.setPWMFreq(PWM_BOARD_FREQUENCY);
-    Wire.setClock(PWM_I2C_CLOCKSPEED);  // Sets the I2C bus speed
-
-    // Start PWM with all motors stationary
+    // Start PWMs with all motors stationary and servos at 90 degrees
     init_pwm();
 
     // Begin serial connection to Braswell
@@ -256,19 +276,36 @@ void enable_motors() {
 }
 
 void init_pwm() {
+    // Begin PWM
+    motor_pwm.begin();
+    servo_pwm.begin();
+
+    motor_pwm.setPWMFreq(MOTOR_PWM_BOARD_FREQ_HZ);
+    servo_pwm.setPWMFreq(SERVO_PWM_BOARD_FREQ_HZ);
+
+    // Set the I2C bus speed
+    Wire.setClock(PWM_I2C_CLOCKSPEED);
+
+    // Set PWM for motors to 50% which stops motors
     for (uint8_t pwm_num = 0; pwm_num < PWM_CHANNELS; pwm_num++) {
-        pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);  // Sets PWM to 50% which stops motors
+        motor_pwm.setPWM(pwm_num, 0, PWM_TICKS / 2);
     }
+
+    // Set PWM for servos to 90 degrees
+    uint16_t yaw_tick = map(90, 0, 180, YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
+    uint16_t pitch_tick = map(90, 0, 180, PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
+    servo_pwm.setPWM(CAMERA_YAW_PWM, 0, yaw_tick);
+    servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
 }
 
 void setup_all_pids() {
     #if CCC_ENABLED
-        ccc_fl.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
-        ccc_ml.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
-        ccc_rl.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
-        ccc_fr.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
-        ccc_mr.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
-        ccc_rr.SetOutputLimits(0, ROVER_MAX_SPEED_MPS);
+        ccc_fl.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_ml.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_rl.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_fr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_mr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_rr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
 
         ccc_fl.SetMode(AUTOMATIC);
         ccc_ml.SetMode(AUTOMATIC);
@@ -285,6 +322,7 @@ void setup_all_pids() {
         ccc_rr.SetSampleTime(PID_SAMPLE_TIME_MS);
     #endif
 
+    // Wheel PID outputs directly to desired duty cycle
     fl_pid.SetOutputLimits(0, 1);
     ml_pid.SetOutputLimits(0, 1);
     rl_pid.SetOutputLimits(0, 1);
@@ -369,8 +407,11 @@ void loop() {
         // and if reading them is successful,
         if (read_commands()) {
             // then set the motor and arm velocities accordingly.
-            set_motor_velocities();
+            set_motor_velocity_targets();
+
             set_arm_velocities();
+
+            set_servo_positions();
 
             last_command_time_ms = millis();
         }
@@ -378,8 +419,8 @@ void loop() {
             // If we've not got a valid command recently
             if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
                 // Set all motor velocities to zero
-                zero_all_velocities();
-                set_motor_velocities();
+                set_commands_default();
+                set_motor_velocity_targets();
                 report_error(NO_COMMANDS_ERROR);
             }
         }
@@ -408,7 +449,53 @@ void loop() {
             report_error(ENCODER_READ_ERROR);
         }
     }
+
+    // If PID is enabled, determine wheel PWM outputs automatically
+    if (pid_enabled) {
+        #if CCC_ENABLED
+        compute_ccc_pids();
+        #endif
+        compute_wheel_pids();
+    }
+    // If PID is disabled, then just use open-loop control on the PWM signals
+    else {
+        set_wheel_pwm_open_loop();
+    }
 }
+
+void set_wheel_pwm_open_loop() {
+    // just convert target velocities straight to pwm outputs, without pid
+    float duty_cycle;
+
+    duty_cycle = 0.5 * (1 + (left_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
+        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+    }
+
+    duty_cycle = 0.5 * (1 + (right_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
+        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+    }
+}
+
+void compute_ccc_pids() {
+    ccc_fl.Compute();
+    ccc_ml.Compute();
+    ccc_rl.Compute();
+    ccc_fr.Compute();
+    ccc_mr.Compute();
+    ccc_rr.Compute();
+}
+
+void compute_wheel_pids() {
+    if (fl_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[0], lw_output[0]); }
+    if (ml_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[1], lw_output[1]); }
+    if (rl_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[2], lw_output[2]); }
+    if (fr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[0], rw_output[0]); }
+    if (mr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[1], rw_output[1]); }
+    if (rr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[2], rw_output[2]); }
+}
+
 
 // TODO: implement a timeout in case of Serial failure
 // Should be short, otherwise the rover will become pretty unresponsive
@@ -552,99 +639,70 @@ bool read_encoder_counts() {
     return false;
 }
 
-void set_motor_velocities() {
-    float = 
-
-    left_wheels_desired_vel = commands.lin_vel + (ROVER_HALF_WHEEL_SEP_M * commands.ang_vel);
-    right_wheels_desired_vel = commands.lin_vel - (ROVER_HALF_WHEEL_SEP_M * commands.ang_vel);
-
-    
+void set_motor_velocity_targets() {
+    float lin_vel = ROVER_MAX_LIN_SPEED_MPS * (commands.lin_vel - 100.0) / 100;
+    float ang_vel = ROVER_MAX_ANG_SPEED_RPS * (commands.ang_vel - 100.0) / 100;
+    left_wheels_desired_vel  = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    right_wheels_desired_vel = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
 }
 
-//void set_motor_velocities() {
-//    // First set rover wheel velocites, linear then angular
-//    float rover_target_velocity[2];
-//    rover_target_velocity[0] = (commands.lin_vel - 100) / 100.0;
-//    rover_target_velocity[1] = (commands.ang_vel - 100) / 100.0;
-//
-//    float wheel_speeds[2];
-//
-//    get_control_outputs(wheel_speeds, rover_target_velocity);
-//    set_wheel_speeds(wheel_speeds);
-//}
-//
-//// Given the desired (normalised) rover target velocity, determine the required
-//// (normalised) velocity for each set of wheels
-//void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
-//    // control_outputs returns the desired motor speed for left and right sides
-//    // rover_target_velocity should have a linear and an angular velocity component
-//
-//    // Left wheel velocity is difference of linear and angular velocities
-//    control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
-//
-//    // Right wheel velocity is sum of linear and angular velocities
-//    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-//
-//    // Scale outputs to be within the stated limits
-//    control_outputs[0] *= MOTOR_MAX_SPEED;
-//    control_outputs[1] *= MOTOR_MAX_SPEED;
-//}
-//
-//void set_wheel_speeds(float wheel_speeds[]) {
-//    // wheel_speeds is a float array: {left_wheels_relative_speed, right_wheels_relative_speed}
-//    uint8_t wheel_num;
-//    float duty_cycle, target_wheel_speed;
-//
-//    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
-//        // Left wheel first
-//        target_wheel_speed = wheel_speeds[0] * L_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-//        duty_cycle = 0.5 * (1 + target_wheel_speed);
-//        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-//
-//        // Then right wheel
-//        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-//        duty_cycle = 0.5 * (1 + target_wheel_speed);
-//        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-//    }
-//}
+
+void set_servo_positions() {
+    // Need to convert from desired position in degrees to required
+    // pwm parameters
+    uint16_t yaw_tick   = map(rover_command_struct.yaw_servo_position_deg,
+                              0, 180,
+                              YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
+    uint16_t pitch_tick = map(rover_command_struct.pitch_servo_position_deg,
+                              0, 180,
+                              PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
+
+    servo_pwm.setPWM(CAMERA_YAW_PWM, 0, yaw_tick);
+    servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
+}
+
 
 // TODO I'm sure this can be neatened up
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = (commands.base_rotation_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = -1 * (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
     target_speed = (commands.arm_actuator_1_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
     target_speed = (commands.arm_actuator_2_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
     target_speed = (commands.wrist_rotation_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
     target_speed = (commands.wrist_actuator_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
     target_speed = (commands.gripper_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
 }
 
 void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
-    pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
+    // Do not allow exceeding motor duty cycle limits
+    static float min_duty_cycle = (1 - MOTOR_MAX_DUTY_CYCLE) / 2;
+    static float max_duty_cycle = 1 - min_duty_cycle;
+    duty_cycle = constrain(duty_cycle, min_duty_cycle, max_duty_cycle);
+    motor_pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
 }
 
 // This whole setup could probably be significantly cleaned up by having a good think
