@@ -25,7 +25,7 @@ class odometry_node:
         	self.lastTime = newTime
 
 	def main(self):
-		self.odomPub = rospy.Publisher('odom', Odometry, queue_size=10)
+		self.odomPub = rospy.Publisher('odometry/filtered', Odometry, queue_size=10)
 		self.tfPub = TransformBroadcaster()
 
 		rospy.init_node('odometry_node')
@@ -117,7 +117,7 @@ class odometry_node:
 	        odom.pose.pose.orientation = q
 		odom.pose.covariance[0] = 1e-3
 		odom.pose.covariance[7] = 1e-3
-		odom.pose.covariance[14] = 100000
+		odom.pose.covariance[14] = 1e-3
 		odom.pose.covariance[21] = 100000
 		odom.pose.covariance[28] = 100000
 		odom.pose.covariance[35] = 1e-3

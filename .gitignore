@@ -3,6 +3,8 @@ build/
 devel/
 bin/
 lib/
+src/iai_kinect2
+src/iai_kinect2/*
 msg_gen/
 srv_gen/
 .idea/

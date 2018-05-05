@@ -3,6 +3,7 @@
 	<node pkg="rover_frames" type="link_footprint_tf.py" name="link_base_tf" output="screen"/>
 	<node pkg="rover_frames" type="rot_camera_tf.py" name="rot_cam_tf" output="screen"/>
 	<node pkg="rover_frames" type="rot_camera_tf_2.py" name="rot_child_tf" output="screen"/>
-	<node pkg="rover_frames" type="static_broadcaster_kinect.py" name="cam_tf" output="screen"/>
-	<node pkg="rover_frames" type="map_odom_tf.py" name="map_odom_tf" output="screen"/>
+	<node pkg="rover_frames" type="static_broadcaster_kinect.py" name="kinect_tf" output="screen"/>
+	<node pkg="rover_frames" type="static_broadcaster_pointcloud.py" name="pointcloud_tf" output="screen"/>
+        <!--node pkg="rover_frames" type="map_odom_tf.py" name="map_odom_tf" output="screen"/-->
 </launch>

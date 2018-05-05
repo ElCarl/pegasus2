@@ -27,13 +27,13 @@ def test(i, j):
        		lf = i*m
        		lm = i*m
        		lr = i*m
-       		encoder_counts.left_wheel_counts = [lf, lm, lr]
+       		encoder_counts.left_wheel_counts = [0, 0, 0]
 	
 	       	# Right wheel encoders
 	       	rf = j*m
 	       	rm = j*m	
        		rr = j*m
-       		encoder_counts.right_wheel_counts = [rf, rm, rr]
+       		encoder_counts.right_wheel_counts = [0, 0, 0]
 
        		# Then the remaining encoders
        		encoder_counts.base_rotation_counts = 0
@@ -43,7 +43,6 @@ def test(i, j):
        		# Finally, publish the data
        		encoder_publisher.publish(encoder_counts)
 		m += 1
-		rospy.loginfo(lf)
 		rate.sleep()
 
 if __name__ == '__main__':
