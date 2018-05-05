@@ -499,7 +499,7 @@ void set_wheel_speeds(float wheel_speeds[]) {
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed = -1 * (rover_command_struct.base_rotation_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_SPEED;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
