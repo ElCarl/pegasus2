@@ -56,10 +56,6 @@ const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_
 const uint8_t PWM_CHANNELS = 16;
 const uint16_t PWM_TICKS = 4096;
 
-// General PWM constants
-const uint8_t PWM_CHANNELS = 16;
-const unsigned int PWM_TICKS = 4096;
-
 // Motor board PWM constants
 const uint16_t MOTOR_PWM_BOARD_FREQ_HZ = 1600;  // Max freq of PWM board is ~1.6kHz - makes an annoying noise!
 
@@ -102,6 +98,8 @@ const float WHEEL_KD = 0;
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
 const uint16_t PID_SAMPLE_TIME_MS = 50;
+const uint8_t PID_MAX_ENCODER_FAILURES = 5;
+const uint16_t ENCODER_ALLOWABLE_FAILURE_PERIOD_MS = 100;
 
 // SPI constants
 const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
@@ -175,11 +173,11 @@ int16_t lw_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // velocity
 int16_t rw_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // velocity
 int32_t encoder_times[ENCODER_HISTORY_LENGTH];
 int16_t encoder_time_diffs[ENCODER_HISTORY_LENGTH];
+uint32_t last_encoder_failure = 0;
+uint8_t recent_encoder_failures = 0;
 
 // Wheel velocities
 // TODO: Check program SRAM - if it's close, change library to use float not double, if there's a difference
-double lw_est_vels[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // These arrays are rolling averages
-double rw_est_vels[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
 double lw_avg_vels[WHEELS_PER_SIDE];
 double rw_avg_vels[WHEELS_PER_SIDE];
 double lw_output[WHEELS_PER_SIDE];  // Output for each wheel. This is what
@@ -188,6 +186,7 @@ double lw_desired_vels[WHEELS_PER_SIDE];
 double rw_desired_vels[WHEELS_PER_SIDE];
 
 // PID variables
+bool pid_enabled = true;
 double left_wheels_desired_vel  = 0;
 double right_wheels_desired_vel = 0;
 double ccc_left_errors[WHEELS_PER_SIDE];
@@ -195,12 +194,12 @@ double ccc_right_errors[WHEELS_PER_SIDE];
 
 // PID Controllers
 #if CCC_ENABLED
-    PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
-    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
-    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_avg_vels[0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_avg_vels[1], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_avg_vels[2], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
 
     PID ccc_fl(&ccc_left_errors[0], &lw_desired_vels[0], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
     PID ccc_ml(&ccc_left_errors[1], &lw_desired_vels[1], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
@@ -209,12 +208,12 @@ double ccc_right_errors[WHEELS_PER_SIDE];
     PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
     PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
 #else
-    PID fl_pid(&lw_est_vels[0][0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID ml_pid(&lw_est_vels[1][0], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rl_pid(&lw_est_vels[2][0], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID fr_pid(&rw_est_vels[0][0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
-    PID mr_pid(&rw_est_vels[1][0], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
-    PID rr_pid(&rw_est_vels[2][0], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_avg_vels[0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_avg_vels[1], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_avg_vels[2], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
 #endif
 
 // Timings
@@ -351,8 +350,6 @@ void setup_all_pids() {
 void init_pid_arrays() {
     for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
         for (uint8_t j =0; j < ENCODER_HISTORY_LENGTH; j++) {
-            lw_est_vels[i][j] = 0;
-            rw_est_vels[i][j] = 0;
             lw_encoder_counts[i][j] = 0;
             rw_encoder_counts[i][j] = 0;
             lw_encoder_diffs[i][j] = 0;
@@ -415,14 +412,12 @@ void loop() {
 
             last_command_time_ms = millis();
         }
-        else {
+        else if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
             // If we've not got a valid command recently
-            if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
-                // Set all motor velocities to zero
-                set_commands_default();
-                set_motor_velocity_targets();
-                report_error(NO_COMMANDS_ERROR);
-            }
+            // Set all motor velocities to zero
+            set_commands_default();
+            set_motor_velocity_targets();
+            report_error(NO_COMMANDS_ERROR);
         }
         // Else, leave the velocities as they are.
     }
@@ -446,6 +441,15 @@ void loop() {
             }
         }
         else {
+            if (millis() - last_encoder_failure < ENCODER_ALLOWABLE_FAILURE_PERIOD_MS) {
+                if (++recent_encoder_failures > PID_MAX_ENCODER_FAILURES) {
+                    pid_enabled = false;
+                }
+            }
+            else {
+                recent_encoder_failures = 0;
+            }
+            last_encoder_failure = millis();
             report_error(ENCODER_READ_ERROR);
         }
     }
@@ -466,6 +470,7 @@ void loop() {
 void set_wheel_pwm_open_loop() {
     // just convert target velocities straight to pwm outputs, without pid
     float duty_cycle;
+    uint8_t wheel_num;
 
     duty_cycle = 0.5 * (1 + (left_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
     for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
@@ -478,6 +483,7 @@ void set_wheel_pwm_open_loop() {
     }
 }
 
+#if CCC_ENABLED
 void compute_ccc_pids() {
     ccc_fl.Compute();
     ccc_ml.Compute();
@@ -486,6 +492,7 @@ void compute_ccc_pids() {
     ccc_mr.Compute();
     ccc_rr.Compute();
 }
+#endif
 
 void compute_wheel_pids() {
     if (fl_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[0], lw_output[0]); }
@@ -650,10 +657,10 @@ void set_motor_velocity_targets() {
 void set_servo_positions() {
     // Need to convert from desired position in degrees to required
     // pwm parameters
-    uint16_t yaw_tick   = map(rover_command_struct.yaw_servo_position_deg,
+    uint16_t yaw_tick   = map(commands.yaw_servo_position_deg,
                               0, 180,
                               YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
-    uint16_t pitch_tick = map(rover_command_struct.pitch_servo_position_deg,
+    uint16_t pitch_tick = map(commands.pitch_servo_position_deg,
                               0, 180,
                               PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
 
@@ -666,7 +673,7 @@ void set_servo_positions() {
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = -1 * (rover_command_struct.base_rotation_velocity - 100) / 100.0;
+    target_speed = -1 * (commands.base_rotation_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
@@ -708,18 +715,26 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 // This whole setup could probably be significantly cleaned up by having a good think
 // about what arrays are actually necessary, which need to be held long-term etc. Might
 // be easier/more clear to convert everything to metres ASAP.
+// Note: This MUST ONLY be called when there is new encoder data available, else it will
+// just push out old data and add duplicates of the most recent data
 void update_wheel_velocity_estimates() {
-    // Initial update of avg velocities
-    float distance_m;
+    float distance_m, old_vel;
+    // For each wheel on either side
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
+        // Determine how far it travelled over the least recent encoder update interval
         distance_m = lw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        lw_avg_vels[wheel] -= distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
+        // Determine the velocity for that time interval
+        old_vel = 1000 * distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
+        // Subtract that velocity's contribution to the rolling average
+        lw_avg_vels[wheel] -= old_vel / ENCODER_HISTORY_LENGTH;
 
+        // Repeat for the right wheel
         distance_m = rw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        rw_avg_vels[wheel] -= distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
+        old_vel = 1000 * distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1] ;
+        rw_avg_vels[wheel] -= old_vel / ENCODER_HISTORY_LENGTH;
     }
     
-    // Make room for the new values
+    // Make room for the new encoder time values
     for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
         encoder_times[i] = encoder_times[i - 1];
         encoder_time_diffs[i] = encoder_time_diffs[i - 1];
@@ -743,18 +758,22 @@ void update_wheel_velocity_estimates() {
     rw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[MR_ENCODER];
     rw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RR_ENCODER];
     
-    // New diffs
+    // New encoder diffs
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
         lw_encoder_diffs[wheel][0] = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][1];
         rw_encoder_diffs[wheel][0] = rw_encoder_counts[wheel][0] - rw_encoder_counts[wheel][1];
     }
     
     // Final avg vel update
+    float new_vel;
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
-        distance_m = lw_encoder_diffs[wheel][0] * (WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV);
-        lw_avg_vels[wheel] += distance_m / encoder_time_diffs[0];
-        distance_m = rw_encoder_diffs[wheel][0] * (WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV);
-        rw_avg_vels[wheel] += distance_m / encoder_time_diffs[0];
+        distance_m = lw_encoder_diffs[wheel][0] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        new_vel = 1000 * distance_m / encoder_time_diffs[0];
+        lw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
+
+        distance_m = rw_encoder_diffs[wheel][0] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        new_vel = 1000 * distance_m / encoder_time_diffs[0];
+        rw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
     }
 }
 
@@ -787,14 +806,16 @@ bool send_encoder_data() {
     return true;
 }
 
-void zero_all_velocities() {
+void set_commands_default() {
     commands.lin_vel = 100;
     commands.ang_vel = 100;
-    commands.base_rotation_velocity = 100;
+    commands.base_rotation_velocity  = 100;
     commands.arm_actuator_1_velocity = 100;
     commands.arm_actuator_2_velocity = 100;
     commands.wrist_rotation_velocity = 100;
     commands.wrist_actuator_velocity = 100;
-    commands.gripper_velocity = 100;
+    commands.gripper_velocity        = 100;
+    commands.yaw_servo_position_deg   = 90;
+    commands.pitch_servo_position_deg = 90;
 }
 
