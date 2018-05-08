@@ -12,12 +12,12 @@
 const bool DEBUG_MODE = 1;
 
 // Physical & electrical constants
-const float ROVER_HALF_WHEEL_SEP_M = 0.35;  // Could be replaced with half the separation for convenience?
+const float ROVER_HALF_WHEEL_SEP_M = 0.35;
 const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
 const float ROVER_MAX_LIN_SPEED_MPS = 1.2;  // Rover max linear speed, used to convert controller input to actual speed
 const float ROVER_MAX_ANG_SPEED_RPS = 0.3;  // Rover max angular speed
-const float MOTOR_MAX_DUTY_CYCLE = 0.8;  // Normalised - so 0.8 is 80% duty cycle rather than 0.8 m/s
+const float MOTOR_MAX_DUTY_CYCLE = 0.8;
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // {F,M,R}. Some motors may be slower than
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addressing this
 const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
@@ -186,7 +186,7 @@ double lw_desired_vels[WHEELS_PER_SIDE];
 double rw_desired_vels[WHEELS_PER_SIDE];
 
 // PID variables
-bool pid_enabled = true;
+bool pid_enabled = false;
 double left_wheels_desired_vel  = 0;
 double right_wheels_desired_vel = 0;
 double ccc_left_errors[WHEELS_PER_SIDE];
@@ -730,10 +730,11 @@ void update_wheel_velocity_estimates() {
 
         // Repeat for the right wheel
         distance_m = rw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        distance_m *= -1;  // Right wheels spin opposite to left!
         old_vel = 1000 * distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1] ;
         rw_avg_vels[wheel] -= old_vel / ENCODER_HISTORY_LENGTH;
     }
-    
+
     // Make room for the new encoder time values
     for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
         encoder_times[i] = encoder_times[i - 1];
@@ -757,7 +758,7 @@ void update_wheel_velocity_estimates() {
     rw_encoder_counts[0][0] = encoder_counts_struct.encoder_counts[FR_ENCODER];
     rw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[MR_ENCODER];
     rw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RR_ENCODER];
-    
+
     // New encoder diffs
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
         lw_encoder_diffs[wheel][0] = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][1];
@@ -772,6 +773,7 @@ void update_wheel_velocity_estimates() {
         lw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
 
         distance_m = rw_encoder_diffs[wheel][0] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        distance_m *= -1;  // Right wheels spin opposite to left
         new_vel = 1000 * distance_m / encoder_time_diffs[0];
         rw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
     }
