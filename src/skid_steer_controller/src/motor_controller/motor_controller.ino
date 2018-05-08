@@ -222,7 +222,6 @@ double ccc_right_errors[WHEELS_PER_SIDE];
 uint32_t last_command_time_ms = 0;
 uint32_t last_encoder_msg_recv_ms = 0;
 uint32_t last_encoder_msg_sent_ms = 0;
-uint32_t loop_start_time;
 
 
 // MAIN PROGRAM CODE
@@ -263,8 +262,6 @@ void setup() {
 
     // Once all setup is complete, allow motors to be used
     enable_motors();
-
-    loop_start_time = millis();
 }
 
 void disable_motors() {
@@ -355,7 +352,7 @@ void setup_all_pids() {
 // TODO (probably not here) - wait a bit on launch to avoid "kick" of wheels on boot
 void init_pid_arrays() {
     for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
-        for (uint8_t j =0; j < ENCODER_HISTORY_LENGTH; j++) {
+        for (uint8_t j = 0; j < ENCODER_HISTORY_LENGTH; j++) {
             lw_encoder_counts[i][j] = 0;
             rw_encoder_counts[i][j] = 0;
             lw_encoder_diffs[i][j] = 1;
@@ -405,13 +402,6 @@ void init_spi() {
 // Loop code
 
 void loop() {
-    // Enable PID once startup time has elapsed
-    if (millis() - loop_start_time > PID_STARTUP_TIME_MS) {
-        pid_enabled = true;
-        // TODO: make this only happen once
-    }
-
-
     // If any movement commands have been sent,
     if (Serial.available() >= command_struct_len + 3) {
         // and if reading them is successful,
