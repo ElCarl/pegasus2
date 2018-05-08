@@ -59,12 +59,12 @@ MAX_SERVO_ANGLE = 180
 # Encoder constants
 NUM_ENCODERS = 7
 ENCODER_MESSAGE_TIMEOUT_MS = 50
-L_FRONT_MOTOR_ENCODER = 5
-L_MID_MOTOR_ENCODER = 6
-L_REAR_MOTOR_ENCODER = 7
-R_FRONT_MOTOR_ENCODER = 3
-R_MID_MOTOR_ENCODER = 2
-R_REAR_MOTOR_ENCODER = 1
+L_FRONT_MOTOR_ENCODER = 4
+L_MID_MOTOR_ENCODER = 5
+L_REAR_MOTOR_ENCODER = 6
+R_FRONT_MOTOR_ENCODER = 2
+R_MID_MOTOR_ENCODER = 1
+R_REAR_MOTOR_ENCODER = 0
 #BASE_ROTATE_MOTOR_ENCODER = 
 #WRIST_ROTATE_MOTOR_ENCODER = 
 GRIPPER_MOTOR_ENCODER = 4
@@ -216,6 +216,7 @@ class RoverController:
 
         # Timestamp is the first element
         arduino_timestamp_ms = encoder_data[0]  # Time since the handshake
+        encoder_data = encoder_data[1:]  # Remove the timestamp so encoders are zero-indexed
         timestamp_ms = (self.board_interface.handshake_time * 1000) + arduino_timestamp_ms
         timestamp_s = int(timestamp_ms / 1000)
         timestamp_ns = (timestamp_ms - (1000 * timestamp_s)) * 1000000

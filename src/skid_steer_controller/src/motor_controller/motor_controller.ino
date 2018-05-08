@@ -504,8 +504,6 @@ void compute_wheel_pids() {
 }
 
 
-// TODO: implement a timeout in case of Serial failure
-// Should be short, otherwise the rover will become pretty unresponsive
 bool read_commands() {
     uint8_t rx_buffer[SERIAL_RX_BUFF_LEN];
 
