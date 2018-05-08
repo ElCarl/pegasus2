@@ -16,13 +16,12 @@ const float ROVER_HALF_WHEEL_SEP_M = 0.35;
 const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
 const float ROVER_MAX_LIN_SPEED_MPS = 1.2;  // Rover max linear speed, used to convert controller input to actual speed
-const float ROVER_MAX_ANG_SPEED_RPS = 0.3;  // Rover max angular speed
+const float ROVER_MAX_ANG_SPEED_RPS = 1.0;  // Rover max angular speed
 const float MOTOR_MAX_DUTY_CYCLE = 0.8;
 const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // {F,M,R}. Some motors may be slower than
 const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addressing this
-const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
+const uint8_t MOTOR_GEAR_RATIO = 49; // Motor gearbox ratio - check
 const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
-
 
 // Encoder constants
 const uint8_t N_ENCS = 7;  // 3 wheels each side & the gripper
@@ -55,6 +54,9 @@ const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_
 const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t PWM_CHANNELS = 16;
 const uint16_t PWM_TICKS = 4096;
+// Do not allow exceeding motor duty cycle limits
+const float MIN_DUTY_CYCLE = (1.0 - MOTOR_MAX_DUTY_CYCLE) / 2.0;
+const float MAX_DUTY_CYCLE = 1.0 - MIN_DUTY_CYCLE;
 
 // Motor board PWM constants
 const uint16_t MOTOR_PWM_BOARD_FREQ_HZ = 1600;  // Max freq of PWM board is ~1.6kHz - makes an annoying noise!
@@ -88,16 +90,16 @@ const byte END_MESSAGE_BYTE   = 255;
 const uint8_t RX_BUFF_LEN     = 64;
 const uint8_t SERIAL_RX_BUFF_LEN = 64;
 const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
-const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
+const uint16_t COMMAND_TIMEOUT_RESET_MS = 1000;
 
 // PID constants
 const uint8_t ENCODER_HISTORY_LENGTH = 5;
-const float WHEEL_KP = 1;
-const float WHEEL_KI = 0.1;
-const float WHEEL_KD = 0;
+const float WHEEL_KP = 0.3;
+const float WHEEL_KI = 0.5;
+const float WHEEL_KD = 0.01;
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
-const uint16_t PID_SAMPLE_TIME_MS = 50;
+const uint16_t PID_SAMPLE_TIME_MS = 45;
 const uint8_t PID_MAX_ENCODER_FAILURES = 5;
 const uint16_t ENCODER_ALLOWABLE_FAILURE_PERIOD_MS = 100;
 
@@ -122,6 +124,7 @@ const uint8_t ENCODER_READ_ERROR = 3;
 const uint8_t COMMAND_FIND_START_ERROR = 4;
 const uint8_t COMMAND_CHECKSUM_ERROR = 5;
 const uint8_t NO_COMMANDS_ERROR = 6;
+const uint8_t PID_DISABLED = 7;
 
 // STRUCTS
 
@@ -208,9 +211,9 @@ double ccc_right_errors[WHEELS_PER_SIDE];
     PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
     PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
 #else
-    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
-    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
     PID fr_pid(&rw_avg_vels[0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
     PID mr_pid(&rw_avg_vels[1], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
     PID rr_pid(&rw_avg_vels[2], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
@@ -352,14 +355,14 @@ void init_pid_arrays() {
         for (uint8_t j =0; j < ENCODER_HISTORY_LENGTH; j++) {
             lw_encoder_counts[i][j] = 0;
             rw_encoder_counts[i][j] = 0;
-            lw_encoder_diffs[i][j] = 0;
-            rw_encoder_diffs[i][j] = 0;
+            lw_encoder_diffs[i][j] = 1;  // 1 not zero to avoid dividing by zero...
+            rw_encoder_diffs[i][j] = 1;  // I'm slightly ashamed of this fix
         }
 
         lw_avg_vels[i] = 0;
         rw_avg_vels[i] = 0;
-        lw_output[i] = 0;
-        rw_output[i] = 0;
+        lw_output[i] = 0.5;
+        rw_output[i] = 0.5;
 
         #if CCC_ENABLED
             lw_desired_vels[i] = 0;
@@ -371,7 +374,7 @@ void init_pid_arrays() {
 
     for (uint8_t j = 0; j < ENCODER_HISTORY_LENGTH; j++) {
         encoder_times[j] = 0;
-        encoder_time_diffs[j] = 0;
+        encoder_time_diffs[j] = 1;
     }
 }
 
@@ -431,6 +434,12 @@ void loop() {
 
             update_wheel_velocity_estimates();
 
+            //Debug logging
+            report_data((uint8_t*)"a", 1);
+            report_data((uint8_t*)&left_wheels_desired_vel, sizeof(double));
+            report_data((uint8_t*)&lw_avg_vels[1], sizeof(double));
+            report_data((uint8_t*)&lw_output[1], sizeof(double));
+
             // Send encoder counts over serial if enough time has elapsed since the
             // last successful send. This data is only sent after successful reads
             // to ensure only new data is sent
@@ -444,6 +453,7 @@ void loop() {
             if (millis() - last_encoder_failure < ENCODER_ALLOWABLE_FAILURE_PERIOD_MS) {
                 if (++recent_encoder_failures > PID_MAX_ENCODER_FAILURES) {
                     pid_enabled = false;
+                    report_error(PID_DISABLED);
                 }
             }
             else {
@@ -624,6 +634,7 @@ bool read_encoder_counts() {
             if (checksum == recv_checksum) {
                 // Copy data from buffer into encoder struct
                 memcpy(encoder_struct_addr, rx_buffer, encoder_struct_len);
+
                 // Insert the timestamp
                 encoder_counts_struct.tick_stamp_ms = count_time - enc_count_handshake_time_ms;
                 // Disable the encoder counter SPI slave
@@ -649,8 +660,9 @@ bool read_encoder_counts() {
 void set_motor_velocity_targets() {
     float lin_vel = ROVER_MAX_LIN_SPEED_MPS * (commands.lin_vel - 100.0) / 100;
     float ang_vel = ROVER_MAX_ANG_SPEED_RPS * (commands.ang_vel - 100.0) / 100;
-    left_wheels_desired_vel  = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
-    right_wheels_desired_vel = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    left_wheels_desired_vel  = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    left_wheels_desired_vel *= -1;
+    right_wheels_desired_vel = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
 }
 
 
@@ -705,10 +717,7 @@ void set_arm_velocities() {
 }
 
 void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
-    // Do not allow exceeding motor duty cycle limits
-    static float min_duty_cycle = (1 - MOTOR_MAX_DUTY_CYCLE) / 2;
-    static float max_duty_cycle = 1 - min_duty_cycle;
-    duty_cycle = constrain(duty_cycle, min_duty_cycle, max_duty_cycle);
+    duty_cycle = constrain(duty_cycle, MIN_DUTY_CYCLE, MAX_DUTY_CYCLE);
     motor_pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
 }
 
@@ -718,40 +727,19 @@ void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
 // Note: This MUST ONLY be called when there is new encoder data available, else it will
 // just push out old data and add duplicates of the most recent data
 void update_wheel_velocity_estimates() {
-    float distance_m, old_vel;
-    // For each wheel on either side
-    for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
-        // Determine how far it travelled over the least recent encoder update interval
-        distance_m = lw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        // Determine the velocity for that time interval
-        old_vel = 1000 * distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1];
-        // Subtract that velocity's contribution to the rolling average
-        lw_avg_vels[wheel] -= old_vel / ENCODER_HISTORY_LENGTH;
-
-        // Repeat for the right wheel
-        distance_m = rw_encoder_diffs[wheel][ENCODER_HISTORY_LENGTH - 1] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        distance_m *= -1;  // Right wheels spin opposite to left!
-        old_vel = 1000 * distance_m / encoder_time_diffs[ENCODER_HISTORY_LENGTH - 1] ;
-        rw_avg_vels[wheel] -= old_vel / ENCODER_HISTORY_LENGTH;
-    }
-
     // Make room for the new encoder time values
     for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
         encoder_times[i] = encoder_times[i - 1];
-        encoder_time_diffs[i] = encoder_time_diffs[i - 1];
     }
     // Do the same for the encoder counts
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
         for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
             lw_encoder_counts[wheel][i] = lw_encoder_counts[wheel][i - 1];
             rw_encoder_counts[wheel][i] = rw_encoder_counts[wheel][i - 1];
-            lw_encoder_diffs[wheel][i] = lw_encoder_diffs[wheel][i - 1];
-            rw_encoder_diffs[wheel][i] = rw_encoder_diffs[wheel][i - 1];
         }
     }
     // Put the new values in
     encoder_times[0] = encoder_counts_struct.tick_stamp_ms;
-    encoder_time_diffs[0] = encoder_times[0] - encoder_times[1];
     lw_encoder_counts[0][0] = encoder_counts_struct.encoder_counts[FL_ENCODER];
     lw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[ML_ENCODER];
     lw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RL_ENCODER];
@@ -759,23 +747,18 @@ void update_wheel_velocity_estimates() {
     rw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[MR_ENCODER];
     rw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RR_ENCODER];
 
-    // New encoder diffs
+    int32_t enc_diff, tick_diff;
+    float dist_m;
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
-        lw_encoder_diffs[wheel][0] = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][1];
-        rw_encoder_diffs[wheel][0] = rw_encoder_counts[wheel][0] - rw_encoder_counts[wheel][1];
-    }
-    
-    // Final avg vel update
-    float new_vel;
-    for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
-        distance_m = lw_encoder_diffs[wheel][0] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        new_vel = 1000 * distance_m / encoder_time_diffs[0];
-        lw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
+        enc_diff = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+        dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
+        lw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
 
-        distance_m = rw_encoder_diffs[wheel][0] * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
-        distance_m *= -1;  // Right wheels spin opposite to left
-        new_vel = 1000 * distance_m / encoder_time_diffs[0];
-        rw_avg_vels[wheel] += new_vel / ENCODER_HISTORY_LENGTH;
+        enc_diff = rw_encoder_counts[wheel][0] - rw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+        dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
+        rw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
     }
 }
 
