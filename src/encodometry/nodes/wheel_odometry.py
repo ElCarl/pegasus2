@@ -64,19 +64,23 @@ class odometry_node:
 		leftFTravel = self.leftFEncoder.getDelta() / self.ticksPerMeter
 		leftMTravel = self.leftMEncoder.getDelta() / self.ticksPerMeter
 		leftRTravel = self.leftREncoder.getDelta() / self.ticksPerMeter
-		rightFTravel = -1*(self.rightFEncoder.getDelta() / self.ticksPerMeter)
-		rightMTravel = -1*(self.rightMEncoder.getDelta() / self.ticksPerMeter)
-		rightRTravel = -1*(self.rightREncoder.getDelta() / self.ticksPerMeter)
+		rightFTravel = (self.rightFEncoder.getDelta() / self.ticksPerMeter)
+		rightMTravel = (self.rightMEncoder.getDelta() / self.ticksPerMeter)
+		rightRTravel = (self.rightREncoder.getDelta() / self.ticksPerMeter)
+		rospy.loginfo(leftFTravel)
+		rospy.loginfo(rightFTravel)
 		#time stuff
 		newTime = rospy.get_time()
 		deltaTime = newTime - self.lastTime
 		self.setTime(newTime)
 		#middle travel
 		aveLT = (leftFTravel + leftMTravel + leftRTravel)/3
-		aveRT = (rightFTravel + rightMTravel + rightRTravel)/3	
-		midTravel = (aveRT + aveLT)/2
-		midTheta = (aveRT - aveLT)/self.wheelSeparation
-        	if aveRT == aveLT:
+		aveRT = (rightFTravel + rightMTravel + rightRTravel)/3
+		rospy.loginfo(aveLT)
+		rospy.loginfo(aveRT)
+		midTravel = (aveRT + (-1*(aveLT)))/2
+		midTheta = (aveRT - (-1*(aveLT)))/self.wheelSeparation
+        	if -1*aveRT == aveLT:
             		deltaX = aveLT*cos(self.pose.theta)
             		deltaY = aveLT*sin(self.pose.theta)
         	else:

@@ -45,7 +45,7 @@ ekf_se_odom:
 #  imu0_relative: false
 #  imu0_queue_size: 10
 #  imu0_remove_gravitational_acceleration: true
-#  gravitational_acceleration: 9.92023
+#  gravitational_acceleration: 10.4
 #  publish_acceleration: true
 
   use_control: false

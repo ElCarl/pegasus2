@@ -6,6 +6,6 @@
   <include file="/home/pegasus/pegasus2/src/iai_kinect2/kinect2_bridge/launch/kinect2_bridge.launch"/>
   <include file="$(find pointcloud_to_laserscan)/launch/peggy_node.launch"/>
 
-  <node pkg="gmapping" type="slam_gmapping" name="slam_node" args="scan:=/scan"/> 
-  <include file="/home/pegasus/pegasus2/src/launch/move_base.launch"/>
+  <node pkg="gmapping" type="slam_gmapping" name="slam_node" args="scan:=/scan"/>
+
 </launch>

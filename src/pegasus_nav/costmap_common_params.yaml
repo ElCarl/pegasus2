@@ -5,8 +5,8 @@ footprint: [[-35, -65], [-35, 55], [35, 55], [35, -65]]
 #robot_radius: ir_of_robot
 inflation_radius: 0.55
 
-observation_sources: laser_scan_sensor point_cloud_sensor
+observation_sources: laser_scan_sensor pointcloud_sensor
 
 laser_scan_sensor: {sensor_frame: kinect2_ir_optical_frame, data_type: LaserScan, topic: /scan, marking: true, clearing: true}
 
-point_cloud_sensor: {sensor_frame: pointcloud_frame, data_type: PointCloud2, topic: /kinect2/sd/points, marking: true, clearing: true}
+pointcloud_sensor:{sensor_frame: pointcloud_frame, data_type: PointCloud2, topic: /kinect2/sd/points, marking: true, clearing: true}
