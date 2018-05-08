@@ -34,19 +34,19 @@ ekf_se_odom:
   odom1_differential: false
   odom1_relative: false
 
-  imu0: imu/data
-  imu0_config: [false, false, false,
-                true,  true,  true,
-                false, false, false,
-                true,  true,  true,
-                true,  true,  true]
-  imu0_nodelay: false
-  imu0_differential: false
-  imu0_relative: false
-  imu0_queue_size: 10
-  imu0_remove_gravitational_acceleration: true
-  gravitational_acceleration: 9.92023
-  publish_acceleration: true
+#  imu0: imu/data
+#  imu0_config: [false, false, false,
+#                true,  true,  true,
+#                false, false, false,
+#                true,  true,  true,
+#                true,  true,  true]
+#  imu0_nodelay: false
+#  imu0_differential: false
+#  imu0_relative: false
+#  imu0_queue_size: 10
+#  imu0_remove_gravitational_acceleration: true
+#  gravitational_acceleration: 9.92023
+#  publish_acceleration: true
 
   use_control: false
 
@@ -82,14 +82,14 @@ ekf_se_odom:
                                 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,     0,     0,     0,    1.0,  0,
                                 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,     0,     0,     0,    0,    1.0]
 
-navsat_transform:
-  frequency: 30
-  delay: 3.0
-  magnetic_declination_radians: 0.0429351  # For lat/long 55.944831, -3.186998
-  yaw_offset: 1.570796327  # IMU reads 0 facing magnetic north, not east
-  zero_altitude: false
-  broadcast_utm_transform: true
-  publish_filtered_gps: false
-  use_odometry_yaw: false
-  wait_for_datum: true
-  datum: [50.8970, -1.4042, 0.0, map, base_link]
+#navsat_transform:
+#  frequency: 30
+#  delay: 3.0
+#  magnetic_declination_radians: 0.0429351  # For lat/long 55.944831, -3.186998
+#  yaw_offset: 1.570796327  # IMU reads 0 facing magnetic north, not east
+#  zero_altitude: false
+#  broadcast_utm_transform: true
+#  publish_filtered_gps: false
+#  use_odometry_yaw: false
+#  wait_for_datum: true
+#  datum: [50.8970, -1.4042, 0.0, map, base_link]

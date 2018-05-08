@@ -22,12 +22,12 @@ const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
 
 // PWM constants
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
-const uint8_t L_FRONT_MOTOR_PWM        = 10;
-const uint8_t L_MID_MOTOR_PWM          = 8;
-const uint8_t L_REAR_MOTOR_PWM         = 6;
-const uint8_t R_FRONT_MOTOR_PWM        = 11;
-const uint8_t R_MID_MOTOR_PWM          = 9;
-const uint8_t R_REAR_MOTOR_PWM         = 7;
+const uint8_t L_FRONT_MOTOR_PWM        = 11;
+const uint8_t L_MID_MOTOR_PWM          = 9;
+const uint8_t L_REAR_MOTOR_PWM         = 7;
+const uint8_t R_FRONT_MOTOR_PWM        = 10;
+const uint8_t R_MID_MOTOR_PWM          = 8;
+const uint8_t R_REAR_MOTOR_PWM         = 6;
 const uint8_t BASE_ROTATE_MOTOR_PWM    = 2;
 const uint8_t ARM_ACTUATOR_1_PWM       = 5;
 const uint8_t ARM_ACTUATOR_2_PWM       = 4;
