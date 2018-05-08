@@ -17,9 +17,7 @@ const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
 const float ROVER_MAX_LIN_SPEED_MPS = 1.2;  // Rover max linear speed, used to convert controller input to actual speed
 const float ROVER_MAX_ANG_SPEED_RPS = 1.0;  // Rover max angular speed
-const float MOTOR_MAX_DUTY_CYCLE = 0.8;
-const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // {F,M,R}. Some motors may be slower than
-const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // others: this allows addressing this
+const float MOTOR_MAX_DUTY_CYCLE = 0.8;  // Don't run the motors too hard, since they're rated at 12 V and the battery is beefy
 const uint8_t MOTOR_GEAR_RATIO = 49; // Motor gearbox ratio - check
 const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
 
@@ -44,14 +42,14 @@ const uint8_t L_REAR_MOTOR_PWM         = 7;
 const uint8_t R_FRONT_MOTOR_PWM        = 10;
 const uint8_t R_MID_MOTOR_PWM          = 8;
 const uint8_t R_REAR_MOTOR_PWM         = 6;
+const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
+const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t BASE_ROTATE_MOTOR_PWM    = 2;
 const uint8_t ARM_ACTUATOR_1_PWM       = 5;
 const uint8_t ARM_ACTUATOR_2_PWM       = 4;
 const uint8_t GRIPPER_MOTOR_PWM        = 0;
 const uint8_t WRIST_ROTATE_MOTOR_PWM   = 1;
 const uint8_t WRIST_ACTUATOR_PWM       = 3;
-const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
-const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t PWM_CHANNELS = 16;
 const uint16_t PWM_TICKS = 4096;
 // Do not allow exceeding motor duty cycle limits
@@ -68,9 +66,9 @@ const uint8_t CAMERA_PITCH_PWM = 1;
 
 // Camera servo constants
 const uint8_t SERVO_MIN_YAW_DEG = 0;
-const uint8_t SERVO_MAX_YAW_DEG = 0;
-const uint8_t SERVO_MIN_PITCH_DEG = 0;
-const uint8_t SERVO_MAX_PITCH_DEG = 0;
+const uint8_t SERVO_MAX_YAW_DEG = 180;
+const uint8_t SERVO_MIN_PITCH_DEG = 55;
+const uint8_t SERVO_MAX_PITCH_DEG = 180;
 const uint16_t YAW_SERVO_MIN_TICK = 102;
 const uint16_t YAW_SERVO_MAX_TICK = 512;
 const uint16_t PITCH_SERVO_MIN_TICK = 102;
@@ -99,9 +97,10 @@ const float WHEEL_KI = 0.5;
 const float WHEEL_KD = 0.01;
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
-const uint16_t PID_SAMPLE_TIME_MS = 45;
+const uint16_t PID_SAMPLE_TIME_MS = 1;  // Only called when data is updated, so very small
 const uint8_t PID_MAX_ENCODER_FAILURES = 5;
 const uint16_t ENCODER_ALLOWABLE_FAILURE_PERIOD_MS = 100;
+const uint16_t PID_STARTUP_TIME_MS = (ENCODER_HISTORY_LENGTH + 1) * (1000 / ENCODER_READ_RATE_HZ);  // Allow PID averages time to adjust to non-zero initial state
 
 // SPI constants
 const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
@@ -223,6 +222,7 @@ double ccc_right_errors[WHEELS_PER_SIDE];
 uint32_t last_command_time_ms = 0;
 uint32_t last_encoder_msg_recv_ms = 0;
 uint32_t last_encoder_msg_sent_ms = 0;
+uint32_t loop_start_time;
 
 
 // MAIN PROGRAM CODE
@@ -263,6 +263,8 @@ void setup() {
 
     // Once all setup is complete, allow motors to be used
     enable_motors();
+
+    loop_start_time = millis();
 }
 
 void disable_motors() {
@@ -350,13 +352,14 @@ void setup_all_pids() {
 // Sets PID related arrays to zero initially. May have issues on boot if encoder
 // counter is reporting nonzero values as it will assume a very high velocity.
 // Probably easier to fix this by just waiting a moment after booting!
+// TODO (probably not here) - wait a bit on launch to avoid "kick" of wheels on boot
 void init_pid_arrays() {
     for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
         for (uint8_t j =0; j < ENCODER_HISTORY_LENGTH; j++) {
             lw_encoder_counts[i][j] = 0;
             rw_encoder_counts[i][j] = 0;
-            lw_encoder_diffs[i][j] = 1;  // 1 not zero to avoid dividing by zero...
-            rw_encoder_diffs[i][j] = 1;  // I'm slightly ashamed of this fix
+            lw_encoder_diffs[i][j] = 1;
+            rw_encoder_diffs[i][j] = 1;
         }
 
         lw_avg_vels[i] = 0;
@@ -402,6 +405,13 @@ void init_spi() {
 // Loop code
 
 void loop() {
+    // Enable PID once startup time has elapsed
+    if (millis() - loop_start_time > PID_STARTUP_TIME_MS) {
+        pid_enabled = true;
+        // TODO: make this only happen once
+    }
+
+
     // If any movement commands have been sent,
     if (Serial.available() >= command_struct_len + 3) {
         // and if reading them is successful,

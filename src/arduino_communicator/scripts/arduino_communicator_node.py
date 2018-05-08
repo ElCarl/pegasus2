@@ -53,8 +53,10 @@ COMMAND_STRUCT_FORMAT = "<{}B".format(COMMAND_STRUCT_LEN)  # Only valid when all
 
 # Servo constants
 MAX_SERVO_SPEED_DPS = 10
-MIN_SERVO_ANGLE = 0
-MAX_SERVO_ANGLE = 180
+MIN_YAW_SERVO_ANGLE = 0
+MAX_YAW_SERVO_ANGLE = 180
+MIN_PITCH_SERVO_ANGLE = 55
+MAX_PITCH_SERVO_ANGLE = 180
 
 # Encoder constants
 NUM_ENCODERS = 7
@@ -77,7 +79,8 @@ ERROR_CODES = {
     3: "ENCODER_READ_ERROR",
     4: "COMMAND_FIND_START_ERROR",
     5: "COMMAND_CHECKSUM_ERROR",
-    6: "NO_COMMANDS_ERROR"
+    6: "NO_COMMANDS_ERROR",
+    7: "PID_DISABLED"
 }
 
 handshake_time = 0
@@ -122,14 +125,14 @@ class RoverCommand:
         dt = time.time() - self.last_yaw_servo_update_time
         val = yaw_topic_data.data
         self.servo_yaw_pos += MAX_SERVO_SPEED_DPS * dt * val
-        self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        self.servo_yaw_pos = constrain(self.servo_yaw_pos, MIN_YAW_SERVO_ANGLE, MAX_YAW_SERVO_ANGLE)
         self.last_yaw_servo_update_time = time.time()
 
     def update_pitch_command(self, pitch_topic_data):
         dt = time.time() - self.last_pitch_servo_update_time
         val = pitch_topic_data.data
         self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * val
-        self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
+        self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_PITCH_SERVO_ANGLE, MAX_PITCH_SERVO_ANGLE)
         self.last_pitch_servo_update_time = time.time()
 
 
