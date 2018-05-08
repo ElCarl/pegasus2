@@ -23,7 +23,7 @@ if __name__ == '__main__':
     static_transformStamped.transform.translation.y = 0.0
     static_transformStamped.transform.translation.z = 0.0
 
-    quat = tf.transformations.quaternion_from_euler(3.1415, 1.571, 0.0, 'rzyx')
+    quat = tf.transformations.quaternion_from_euler(-1.571, 0.0, -1.571, 'rzyx')
     static_transformStamped.transform.rotation.x = quat[0]
     static_transformStamped.transform.rotation.y = quat[1]
     static_transformStamped.transform.rotation.z = quat[2]

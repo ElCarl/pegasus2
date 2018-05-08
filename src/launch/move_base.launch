@@ -13,5 +13,6 @@
     <rosparam file="$(find pegasus_nav)/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find pegasus_nav)/global_costmap_params.yaml" command="load" />
     <rosparam file="$(find pegasus_nav)/base_local_planner_params.yaml" command="load" />
+    <remap from="cmd_vel" to="rover_target_vel"/>
   </node>
 </launch>

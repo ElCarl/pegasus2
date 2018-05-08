@@ -9,7 +9,7 @@ import math
 
 def callback(data):
 	global orient
-        orient = quaternion_from_euler(0, data, 0)
+        orient = quaternion_from_euler(0, data.data, 0)
 
 if __name__ == '__main__':
     rospy.init_node('dynamic_tf2_broadcaster')
