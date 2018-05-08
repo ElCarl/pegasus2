@@ -365,7 +365,7 @@ class BoardInterface:
             format_str = "B" * msg_len
             info = [str(c) for c in struct.unpack(format_str, msg_bytes)]
             msg = "Debug msg: " + ";".join(info)
-            rospy.logwarn_throttle(2, msg)
+            rospy.logwarn(msg)
         else:
             val = ord(rec_byte)
             rospy.logerr("Unknown serial message type byte %d "
@@ -454,13 +454,17 @@ def main():
     # Set ROS rate
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
 
+    last_time = time.time()
+
     # then main loop code
     try:
         while not rospy.is_shutdown():
-            rover_controller.pass_commands()
+            if time.time() - last_time > (1.0/COMMAND_UPDATE_RATE):
+                rover_controller.pass_commands()
+                last_time = time.time()
             board_interface.read_serial_data()  # Should this also be encapsulated within RoverController?
             rover_controller.publish_camera_angles()
-            rate.sleep()
+            #rate.sleep()
     except rospy.ROSInterruptException:
         pass
     finally:
