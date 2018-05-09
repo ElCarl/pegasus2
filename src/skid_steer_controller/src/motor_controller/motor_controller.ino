@@ -694,7 +694,7 @@ void set_arm_velocities() {
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = (commands.wrist_rotation_velocity - 100) / 100.0;
+    target_speed = -1 * (commands.wrist_rotation_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
@@ -704,7 +704,7 @@ void set_arm_velocities() {
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = (commands.gripper_velocity - 100) / 100.0;
+    target_speed = -1 * (commands.gripper_velocity - 100) / 100.0;
     target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
