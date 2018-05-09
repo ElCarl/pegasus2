@@ -437,7 +437,9 @@ void loop() {
             //Debug logging
             report_data((uint8_t*)"a", 1);
             report_data((uint8_t*)&left_wheels_desired_vel, sizeof(double));
+            report_data((uint8_t*)&lw_avg_vels[0], sizeof(double));
             report_data((uint8_t*)&lw_avg_vels[1], sizeof(double));
+            report_data((uint8_t*)&lw_output[0], sizeof(double));
             report_data((uint8_t*)&lw_output[1], sizeof(double));
 
             // Send encoder counts over serial if enough time has elapsed since the
