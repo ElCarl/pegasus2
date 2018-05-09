@@ -485,11 +485,13 @@ void set_wheel_pwm_open_loop() {
     uint8_t wheel_num;
 
     duty_cycle = 0.5 * (1 + (left_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    duty_cycle = 1 - duty_cycle;
     for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
         set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
     }
 
     duty_cycle = 0.5 * (1 + (right_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    duty_cycle = 1 - duty_cycle;
     for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
         set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
     }
@@ -661,8 +663,8 @@ void set_motor_velocity_targets() {
     float lin_vel = ROVER_MAX_LIN_SPEED_MPS * (commands.lin_vel - 100.0) / 100;
     float ang_vel = ROVER_MAX_ANG_SPEED_RPS * (commands.ang_vel - 100.0) / 100;
     left_wheels_desired_vel  = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
-    left_wheels_desired_vel *= -1;
     right_wheels_desired_vel = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    right_wheels_desired_vel *= -1;
 }
 
 
