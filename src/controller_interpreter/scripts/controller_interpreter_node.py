@@ -35,10 +35,11 @@ ARM_BOOST_BUTTON = 4      # LB
 SLOW_LINEAR_AXIS = 7      # U/D D-pad - for fine control when using arm
 SLOW_ANGULAR_AXIS = 6     # L/R D-pad - ditto
 
-
 # Program constants
 COMMAND_UPDATE_RATE = 20
 
+# Deadband constants for stick control
+DEADBAND_WIDTH = 0.05  # i.e. -0.05/+0.05 will map to 0
 
 # Global variable to hold most up to date input data from "Joy"
 # Starts in the default controller state
@@ -90,6 +91,9 @@ def get_commands():
         current_control_state_index %= len(control_states)  # Ensure that result is within index
         rospy.loginfo("Control scheme switched to %s",control_states[current_control_state_index])
     switch_button_prev_state = input_buttons[CONTROL_SCHEME_CHANGE_BUTTON]
+
+    for axis in input_axes:
+        axis = constrain(axis, -DEADBAND_WIDTH, DEADBAND_WIDTH)
 
     try:
         if control_states[current_control_state_index] == "drive":
@@ -198,6 +202,9 @@ def arm_interpreter(axes, buttons):
     commands["gripper_velocity"] = gripper_input * 0.5 * (1 + boost_input)
 
     return commands
+
+def constrain(val, minimum, maximum):
+    return min(maximum, max(val, minimum))
 
 
 def initialise_subscriber():

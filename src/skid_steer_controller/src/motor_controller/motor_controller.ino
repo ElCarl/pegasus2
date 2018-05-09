@@ -29,7 +29,7 @@ const uint8_t RL_ENCODER = 6;
 const uint8_t FR_ENCODER = 2;
 const uint8_t MR_ENCODER = 1;
 const uint8_t RR_ENCODER = 0;
-const uint8_t ENCODER_READ_RATE_HZ = 20;
+const uint8_t ENCODER_READ_RATE_HZ = 30;  // Should probably be adjusted
 const uint8_t ENCODER_SEND_RATE_HZ = 5;  // Encodometry probably needs less data than PID
 const uint8_t TICKS_PER_MOTOR_REV = 10;  // Check
 const uint16_t TICKS_PER_WHEEL_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GEAR_RATIO;
@@ -92,12 +92,12 @@ const uint16_t COMMAND_TIMEOUT_RESET_MS = 1000;
 
 // PID constants
 const uint8_t ENCODER_HISTORY_LENGTH = 5;
-const float WHEEL_KP = 0.3;
-const float WHEEL_KI = 0.5;
-const float WHEEL_KD = 0.01;
+const float WHEEL_KP = 0.3;  // To be tuned since adjusting sample rate
+const float WHEEL_KI = 0.0;  // Set to zero for initial tuning
+const float WHEEL_KD = 0.0;  // Ditto
 const float CCC_KP = 1;
 const float CCC_KI = 0.1;
-const uint16_t PID_SAMPLE_TIME_MS = 1;  // Only called when data is updated, so very small
+const uint16_t PID_SAMPLE_TIME_MS = 0.9 * (1000 / ENCODER_READ_RATE_HZ);  // Used to adjust tunings in PID library, so needs to be accurate-ish! Made slightly quicker than encoder read rate to ensure it is always run.
 const uint8_t PID_MAX_ENCODER_FAILURES = 5;
 const uint16_t ENCODER_ALLOWABLE_FAILURE_PERIOD_MS = 100;
 const uint16_t PID_STARTUP_TIME_MS = (ENCODER_HISTORY_LENGTH + 1) * (1000 / ENCODER_READ_RATE_HZ);  // Allow PID averages time to adjust to non-zero initial state
