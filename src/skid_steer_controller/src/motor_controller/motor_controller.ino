@@ -188,7 +188,7 @@ double lw_desired_vels[WHEELS_PER_SIDE];
 double rw_desired_vels[WHEELS_PER_SIDE];
 
 // PID variables
-bool pid_enabled = false;
+bool pid_enabled = true;
 double left_wheels_desired_vel  = 0;
 double right_wheels_desired_vel = 0;
 double ccc_left_errors[WHEELS_PER_SIDE];
