@@ -29,8 +29,10 @@ ARM_ACTUATOR_2_AXIS = 4   # RS U/D
 WRIST_ROTATE_AXIS = 3     # RS L/R
 WRIST_RAISE_BUTTON = 3    # Y
 WRIST_LOWER_BUTTON = 0    # A
-GRIPPER_CLOSE_BUTTON = 2  # X
-GRIPPER_OPEN_BUTTON = 1   # B
+##GRIPPER_CLOSE_BUTTON = 2  # X
+##GRIPPER_OPEN_BUTTON = 1   # B
+GRIPPER_CLOSE_AXIS = 5
+GRIPPER_OPEN_AXIS = 2
 ARM_BOOST_BUTTON = 4      # LB
 SLOW_LINEAR_AXIS = 7      # U/D D-pad - for fine control when using arm
 SLOW_ANGULAR_AXIS = 6     # L/R D-pad - ditto
@@ -183,8 +185,9 @@ def arm_interpreter(axes, buttons):
     wrist_raise_input = buttons[WRIST_RAISE_BUTTON]
     wrist_lower_input = buttons[WRIST_LOWER_BUTTON]
     wrist_actuator_input = wrist_raise_input - wrist_lower_input
-    gripper_open_input = buttons[GRIPPER_OPEN_BUTTON]
-    gripper_close_input = buttons[GRIPPER_CLOSE_BUTTON]
+
+    gripper_open_input = axes[GRIPPER_OPEN_AXIS]
+    gripper_close_input = axes[GRIPPER_CLOSE_AXIS]
     gripper_input = gripper_open_input - gripper_close_input
 
     # [command] * 0.5 * (1 + boost_input) halves command speed when boost button is not pressed
