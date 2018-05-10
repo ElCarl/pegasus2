@@ -331,9 +331,6 @@ class BoardInterface:
         lin_vel, ang_vel, base_rotate, actuator_1_move,
         actuator_2_move, wrist_rotate, wrist_actuator_move, gripper_move
         servo_yaw, servo_pitch
-
-        A command to control the camera servo will most likely be added
-        at some point, probably another byte
         """
         rospy.logdebug_throttle(2, "sending commands: {}".format(" ".join(str(c) for c in command_struct)))
         assert(len(command_struct) == COMMAND_STRUCT_LEN)
