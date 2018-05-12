@@ -279,133 +279,22 @@ class BoardInterface:
         self.serial_handshake()
 
     def init_serial(self, retry_limit=SERIAL_RETRY_LIMIT):
-        while True:
-            self.full_port_name = self.base_port_name + str(self.port_num)
-            try:
-                self.serial_conn = serial.Serial(self.full_port_name, self.baudrate,
-                                                 timeout=READ_TIMEOUT_S, writeTimeout=WRITE_TIMEOUT_S)
-            except OSError:
-                rospy.logwarn("Arduino not found at %s, trying next", self.full_port_name)
-                self.port_num += 1
-                if self.port_num > retry_limit:
-                    rospy.logfatal("Arduino not found on any ACM port up to %d!",
-                                   retry_limit)
-                    raise RuntimeError("Arduino connection unsuccessful")
-            else:
-                rospy.loginfo("Serial connection made")
-                break
+        pass
 
     def serial_handshake(self):
-        rospy.loginfo("Attempting serial handshake")
-        if not self.serial_conn:
-            rospy.logfatal("Not connected to motor controller board!")
-            raise RuntimeError("Motor controller board serial connection does not exist")
-        start_time = time.time()
-        connected = False
-        while not connected:
-            try:
-                # May be needed to ensure that this will actually send a ready byte
-                self.serial_conn.write(SERIAL_READY_BYTE)
-                while self.serial_conn.read() != SERIAL_READY_BYTE:
-                    if (time.time() - start_time) * 1000 > HANDSHAKE_TIMEOUT_MS:
-                        rospy.logerr("Handshake timed out. Try running reset_arduino.py")
-                        raise RuntimeError("Handshake timed out")
-                    self.serial_conn.write(SERIAL_READY_BYTE)
-                    time.sleep(0.1)
-                connected = True
-            except serial.serialutil.SerialException:
-                rospy.logerr("Serial connection error")
-        self.handshake_time = time.time()
-
-        while self.serial_conn.read() != END_MESSAGE_BYTE:
-            pass
-
-        rospy.loginfo("Handshake successful")
+        pass
 
     def send_commands(self, command_struct):
-        """
-        Writes the desired commands in command_struct to the device
-        over serial. The command_struct *must* be the exact same as
-        the struct to receive it on the other device!
-        Currently, it is 10 bytes:
-        lin_vel, ang_vel, base_rotate, actuator_1_move,
-        actuator_2_move, wrist_rotate, wrist_actuator_move, gripper_move
-        servo_yaw, servo_pitch
-        """
-        rospy.logdebug_throttle(2, "sending commands: {}".format(" ".join(str(c) for c in command_struct)))
-        assert(len(command_struct) == COMMAND_STRUCT_LEN)
-        command_data = struct.pack(COMMAND_STRUCT_FORMAT, *command_struct)
-        checksum = calc_checksum(command_data)
-
-        try:
-            self.serial_conn.write(BEGIN_MESSAGE_BYTE)
-            # Send struct length - must convert len(command_data) to byte array
-            self.serial_conn.write(bytearray((len(command_data),)))
-            self.serial_conn.write(command_data)
-            # Send checksum
-            self.serial_conn.write(bytearray((checksum,)))  # Regularly times out here!
-        except serial.SerialTimeoutException:
-            rospy.logerr("Serial write timeout")
-            # Just pass for now, ignoring this attempt and trying again later
-            pass
+        pass
 
     def read_serial_data(self):
-        if self.serial_conn.inWaiting() == 0:
-            return
-        # else
-        rec_byte = self.serial_conn.read()
-        if rec_byte == ENCODER_DATA_BYTE:
-            self.read_encoder_data()
-        elif rec_byte == BOARD_STATUS_BYTE:
-            error_code = ord(self.serial_conn.read())
-            rospy.logwarn_throttle(2, ERROR_CODES[error_code]);
-        elif rec_byte == DEBUG_BYTE:
-            msg_len = ord(self.serial_conn.read())
-            msg_bytes = self.serial_conn.read(msg_len)
-            format_str = "B" * msg_len
-            info = [str(c) for c in struct.unpack(format_str, msg_bytes)]
-            msg = "Debug msg: " + ";".join(info)
-            rospy.logwarn(msg)
-        else:
-            val = ord(rec_byte)
-            rospy.logerr("Unknown serial message type byte %d "
-                         "received from motor controller", val)
-            self.echo_message()
+        pass
 
     def read_encoder_data(self):
-        try:
-            struct_len = ord(self.serial_conn.read())
-            data_str = self.serial_conn.read(struct_len)
-            rec_checksum = ord(self.serial_conn.read())
-        except serial.SerialTimeoutException:
-            rospy.logerr("Serial timeout awaiting encoder data")
-            return False
-
-        # Use the Python struct library to interpret the data
-        # '<' enforces little-endianness
-        # L[n]l means:
-        #   L  - one unsigned long (timestamp)
-        #   [n]l - [n] signed longs (encoder counts)
-        try:
-            format_str = "<L{}l".format(NUM_ENCODERS)
-            encoder_data = struct.unpack(format_str, data_str)
-        except struct.error:
-            rospy.logerr("read_encoder_data error in struct unpack. Message: %s", data_str)
-            return False
-
-        if rec_checksum == calc_checksum(data_str):
-            self.encoder_callback(encoder_data)
-            rospy.logdebug_throttle(2, "encoder message received")
-        else:
-            rospy.logerr("Encoder checksum failure, ignoring message")
+        pass
 
     def echo_message(self):
-        start_time = time.time()
-        while self.serial_conn.inWaiting() < 12:
-            if time.time() > start_time + 0.05:
-                break
-        echo = self.serial_conn.read(self.serial_conn.inWaiting())
-        rospy.loginfo("Echo: %s", [ord(c) for c in echo])
+        pass
 
 
 ##########################
