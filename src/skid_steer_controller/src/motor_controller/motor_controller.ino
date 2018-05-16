@@ -346,21 +346,17 @@ void setup_all_pids() {
     rr_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
 }
 
-// Sets PID related arrays to zero initially. May have issues on boot if encoder
-// counter is reporting nonzero values as it will assume a very high velocity.
-// Probably easier to fix this by just waiting a moment after booting!
-// TODO (probably not here) - wait a bit on launch to avoid "kick" of wheels on boot
 void init_pid_arrays() {
-    for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
-        for (uint8_t j = 0; j < ENCODER_HISTORY_LENGTH; j++) {
-            lw_encoder_counts[i][j] = 0;
-            rw_encoder_counts[i][j] = 0;
-            lw_encoder_diffs[i][j] = 1;
-            rw_encoder_diffs[i][j] = 1;
-        }
+    // Initialise PID arrays with encoder counts from board to avoid initial "kick"
+    for (uint8_t i = 0; i < ENCODER_HISTORY_LENGTH; i++) {
+        if (!read_encoder_counts()) {
+            pid_enabled = false;
+	    return;
+	}
+	update_wheel_velocity_estimates();
+    }
 
-        lw_avg_vels[i] = 0;
-        rw_avg_vels[i] = 0;
+    for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
         lw_output[i] = 0.5;
         rw_output[i] = 0.5;
 
@@ -370,11 +366,6 @@ void init_pid_arrays() {
             ccc_left_errors[i] = 0;
             ccc_right_errors[i] = 0;
         #endif
-    }
-
-    for (uint8_t j = 0; j < ENCODER_HISTORY_LENGTH; j++) {
-        encoder_times[j] = 0;
-        encoder_time_diffs[j] = 1;
     }
 }
 
@@ -745,11 +736,13 @@ void update_wheel_velocity_estimates() {
     float dist_m;
     for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
         enc_diff = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+	enc_diff = max(1, enc_diff);  // Avoid zero division
         dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
         tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
         lw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
 
         enc_diff = rw_encoder_counts[wheel][0] - rw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+	enc_diff = max(1, enc_diff);  // Avoid zero division
         dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
         tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
         rw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
