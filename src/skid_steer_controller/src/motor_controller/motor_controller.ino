@@ -1,24 +1,38 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <PID_v1.h>
 #include <SPI.h>
 
+// Compilation-affecting defs
+#define CCC_ENABLED 0  // To enable cross-coupled control. 0 disable, 1 enable  NOT IMPLEMENTED YET
 
 // CONSTANTS
 
 // Debug constants
 const bool DEBUG_MODE = 1;
 
-// Electrical & physical constants
-const float MOTOR_MAX_SPEED = 0.8;  // Normalised - so 0.7 is 70% duty cycle rather than 0.7 m/s
-const float L_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
-const float R_MOTOR_RELATIVE_SPEEDS[] = {1, 1, 1};  // Front, mid, rear
+// Physical & electrical constants
+const float ROVER_HALF_WHEEL_SEP_M = 0.35;
+const float WHEEL_CIRCUMFERENCE_M = 0.6283;
 const uint8_t WHEELS_PER_SIDE = 3;
-const uint8_t N_ENCS = 7;
-const float ROVER_LENGTH_M  = 0.9;
-const float ROVER_WIDTH_M   = 0.674;
-const float WHEEL_CIRCUMF_M = 0.638;
-const uint8_t MOTOR_GEAR_RATIO = 24; // Motor gearbox ratio - check
+const float ROVER_MAX_LIN_SPEED_MPS = 1.2;  // Rover max linear speed, used to convert controller input to actual speed
+const float ROVER_MAX_ANG_SPEED_RPS = 1.0;  // Rover max angular speed
+const float MOTOR_MAX_DUTY_CYCLE = 0.8;  // Don't run the motors too hard, since they're rated at 12 V and the battery is beefy
+const uint8_t MOTOR_GEAR_RATIO = 49; // Motor gearbox ratio - check
 const uint8_t WHEEL_GEAR_RATIO = 2;  // Motor output to wheel rotations
+
+// Encoder constants
+const uint8_t N_ENCS = 7;  // 3 wheels each side & the gripper
+const uint8_t FL_ENCODER = 4;
+const uint8_t ML_ENCODER = 5;
+const uint8_t RL_ENCODER = 6;
+const uint8_t FR_ENCODER = 2;
+const uint8_t MR_ENCODER = 1;
+const uint8_t RR_ENCODER = 0;
+const uint8_t ENCODER_READ_RATE_HZ = 30;  // Should probably be adjusted
+const uint8_t ENCODER_SEND_RATE_HZ = 5;  // Encodometry probably needs less data than PID
+const uint8_t TICKS_PER_MOTOR_REV = 10;  // Check
+const uint16_t TICKS_PER_WHEEL_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GEAR_RATIO;
 
 // PWM constants
 const unsigned long PWM_I2C_CLOCKSPEED = 400000;    // I2C fast mode @ 400 kHz
@@ -28,18 +42,19 @@ const uint8_t L_REAR_MOTOR_PWM         = 7;
 const uint8_t R_FRONT_MOTOR_PWM        = 10;
 const uint8_t R_MID_MOTOR_PWM          = 8;
 const uint8_t R_REAR_MOTOR_PWM         = 6;
+const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
+const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
 const uint8_t BASE_ROTATE_MOTOR_PWM    = 2;
 const uint8_t ARM_ACTUATOR_1_PWM       = 5;
 const uint8_t ARM_ACTUATOR_2_PWM       = 4;
 const uint8_t GRIPPER_MOTOR_PWM        = 0;
 const uint8_t WRIST_ROTATE_MOTOR_PWM   = 1;
 const uint8_t WRIST_ACTUATOR_PWM       = 3;
-const uint8_t L_MOTOR_PWM_CHANNELS[]   = {L_FRONT_MOTOR_PWM, L_MID_MOTOR_PWM, L_REAR_MOTOR_PWM};
-const uint8_t R_MOTOR_PWM_CHANNELS[]   = {R_FRONT_MOTOR_PWM, R_MID_MOTOR_PWM, R_REAR_MOTOR_PWM};
-
-// General PWM constants
 const uint8_t PWM_CHANNELS = 16;
-const unsigned int PWM_TICKS = 4096;
+const uint16_t PWM_TICKS = 4096;
+// Do not allow exceeding motor duty cycle limits
+const float MIN_DUTY_CYCLE = (1.0 - MOTOR_MAX_DUTY_CYCLE) / 2.0;
+const float MAX_DUTY_CYCLE = 1.0 - MIN_DUTY_CYCLE;
 
 // Motor board PWM constants
 const uint16_t MOTOR_PWM_BOARD_FREQ_HZ = 1600;  // Max freq of PWM board is ~1.6kHz - makes an annoying noise!
@@ -51,9 +66,9 @@ const uint8_t CAMERA_PITCH_PWM = 1;
 
 // Camera servo constants
 const uint8_t SERVO_MIN_YAW_DEG = 0;
-const uint8_t SERVO_MAX_YAW_DEG = 0;
-const uint8_t SERVO_MIN_PITCH_DEG = 0;
-const uint8_t SERVO_MAX_PITCH_DEG = 0;
+const uint8_t SERVO_MAX_YAW_DEG = 180;
+const uint8_t SERVO_MIN_PITCH_DEG = 55;
+const uint8_t SERVO_MAX_PITCH_DEG = 180;
 const uint16_t YAW_SERVO_MIN_TICK = 102;
 const uint16_t YAW_SERVO_MAX_TICK = 512;
 const uint16_t PITCH_SERVO_MIN_TICK = 102;
@@ -70,9 +85,22 @@ const byte BEGIN_MESSAGE_BYTE = 252;
 const byte ARM_MESSAGE_BYTE   = 253;
 const byte DRIVE_MESSAGE_BYTE = 254;
 const byte END_MESSAGE_BYTE   = 255;
+const uint8_t RX_BUFF_LEN     = 64;
 const uint8_t SERIAL_RX_BUFF_LEN = 64;
 const uint8_t MAX_COMMAND_READ_ATTEMPTS = 64;
-const uint16_t COMMAND_TIMEOUT_RESET_MS = 5000;
+const uint16_t COMMAND_TIMEOUT_RESET_MS = 1000;
+
+// PID constants
+const uint8_t ENCODER_HISTORY_LENGTH = 5;
+const float WHEEL_KP = 0.3;  // To be tuned since adjusting sample rate
+const float WHEEL_KI = 0.0;  // Set to zero for initial tuning
+const float WHEEL_KD = 0.0;  // Ditto
+const float CCC_KP = 1;
+const float CCC_KI = 0.1;
+const uint16_t PID_SAMPLE_TIME_MS = 0.9 * (1000 / ENCODER_READ_RATE_HZ);  // Used to adjust tunings in PID library, so needs to be accurate-ish! Made slightly quicker than encoder read rate to ensure it is always run.
+const uint8_t PID_MAX_ENCODER_FAILURES = 5;
+const uint16_t ENCODER_ALLOWABLE_FAILURE_PERIOD_MS = 100;
+const uint16_t PID_STARTUP_TIME_MS = (ENCODER_HISTORY_LENGTH + 1) * (1000 / ENCODER_READ_RATE_HZ);  // Allow PID averages time to adjust to non-zero initial state
 
 // SPI constants
 const uint32_t SPI_CLOCKSPEED_HZ = 4000000;
@@ -83,12 +111,6 @@ const uint8_t SEND_MESSAGE     = 252;
 const uint8_t END_MESSAGE      = 255;
 const uint8_t SPI_MAX_READ_ATTEMPTS = 3;
 const uint8_t SPI_RX_BUFF_LEN = 64;
-
-// Encoder constants
-const uint8_t ENCODER_READ_RATE_HZ = 20;
-const uint8_t ENCODER_SEND_RATE_HZ = 5;  // Encodometry probably needs less data than PID
-const uint8_t TICKS_PER_MOTOR_REV = 10;  // Check
-const uint16_t TICKS_PER_REV = TICKS_PER_MOTOR_REV * MOTOR_GEAR_RATIO * WHEEL_GEAR_RATIO;
 
 // Other IO constants
 const uint8_t MOTOR_ENABLE_PIN = 4;  // Pin chosen at random, change as appropriate
@@ -101,6 +123,7 @@ const uint8_t ENCODER_READ_ERROR = 3;
 const uint8_t COMMAND_FIND_START_ERROR = 4;
 const uint8_t COMMAND_CHECKSUM_ERROR = 5;
 const uint8_t NO_COMMANDS_ERROR = 6;
+const uint8_t PID_DISABLED = 7;
 
 // STRUCTS
 
@@ -112,8 +135,8 @@ struct ENCODER_DATA_STRUCTURE {
 
 // Define the rover commands data structure
 struct ROVER_COMMAND_DATA_STRUCTURE {
-    uint8_t rover_linear_velocity;
-    uint8_t rover_angular_velocity;
+    uint8_t lin_vel;
+    uint8_t ang_vel;
     uint8_t base_rotation_velocity;
     uint8_t arm_actuator_1_velocity;
     uint8_t arm_actuator_2_velocity;
@@ -122,9 +145,7 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t gripper_velocity;
     uint8_t yaw_servo_position_deg;
     uint8_t pitch_servo_position_deg;
-    uint8_t command_byte;  // LSB PID_ENABLE;X;X;X;X;X;X;X MSB
 };
-
 
 
 // GLOBAL VARIABLES
@@ -139,13 +160,63 @@ Adafruit_PWMServoDriver servo_pwm = Adafruit_PWMServoDriver(0x41);
 
 // Structs
 ENCODER_DATA_STRUCTURE encoder_counts_struct;
-ROVER_COMMAND_DATA_STRUCTURE rover_command_struct;
+ROVER_COMMAND_DATA_STRUCTURE commands;
 
 // Struct info
 uint8_t * encoder_struct_addr = (uint8_t *)&encoder_counts_struct;
-uint8_t * command_struct_addr = (uint8_t *)&rover_command_struct;
+uint8_t * command_struct_addr = (uint8_t *)&commands;
 uint8_t encoder_struct_len = sizeof(encoder_counts_struct);
-uint8_t command_struct_len = sizeof(rover_command_struct);
+uint8_t command_struct_len = sizeof(commands);
+
+// Encoder stuff
+int32_t lw_encoder_counts[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
+int32_t rw_encoder_counts[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];
+int16_t lw_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // velocity
+int16_t rw_encoder_diffs[WHEELS_PER_SIDE][ENCODER_HISTORY_LENGTH];  // velocity
+int32_t encoder_times[ENCODER_HISTORY_LENGTH];
+int16_t encoder_time_diffs[ENCODER_HISTORY_LENGTH];
+uint32_t last_encoder_failure = 0;
+uint8_t recent_encoder_failures = 0;
+
+// Wheel velocities
+// TODO: Check program SRAM - if it's close, change library to use float not double, if there's a difference
+double lw_avg_vels[WHEELS_PER_SIDE];
+double rw_avg_vels[WHEELS_PER_SIDE];
+double lw_output[WHEELS_PER_SIDE];  // Output for each wheel. This is what
+double rw_output[WHEELS_PER_SIDE];  // is actually sent to the motors
+double lw_desired_vels[WHEELS_PER_SIDE];
+double rw_desired_vels[WHEELS_PER_SIDE];
+
+// PID variables
+bool pid_enabled = true;
+double left_wheels_desired_vel  = 0;
+double right_wheels_desired_vel = 0;
+double ccc_left_errors[WHEELS_PER_SIDE];
+double ccc_right_errors[WHEELS_PER_SIDE];
+
+// PID Controllers
+#if CCC_ENABLED
+    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &lw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &lw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &lw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, DIRECT);
+    PID fr_pid(&rw_avg_vels[0], &rw_output[0], &rw_desired_vels[0], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_avg_vels[1], &rw_output[1], &rw_desired_vels[1], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_avg_vels[2], &rw_output[2], &rw_desired_vels[2], WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+
+    PID ccc_fl(&ccc_left_errors[0], &lw_desired_vels[0], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_ml(&ccc_left_errors[1], &lw_desired_vels[1], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_rl(&ccc_left_errors[2], &lw_desired_vels[2], &left_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_fr(&ccc_right_errors[0], &rw_desired_vels[0], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_mr(&ccc_right_errors[1], &rw_desired_vels[1], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+    PID ccc_rr(&ccc_right_errors[2], &rw_desired_vels[2], &right_wheels_desired_vel, CCC_KP, CCC_KI, 0, DIRECT);
+#else
+    PID fl_pid(&lw_avg_vels[0], &lw_output[0], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID ml_pid(&lw_avg_vels[1], &lw_output[1], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rl_pid(&lw_avg_vels[2], &lw_output[2], &left_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID fr_pid(&rw_avg_vels[0], &rw_output[0], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID mr_pid(&rw_avg_vels[1], &rw_output[1], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+    PID rr_pid(&rw_avg_vels[2], &rw_output[2], &right_wheels_desired_vel, WHEEL_KP, WHEEL_KI, WHEEL_KD, REVERSE);
+#endif
 
 // Timings
 uint32_t last_command_time_ms = 0;
@@ -154,7 +225,6 @@ uint32_t last_encoder_msg_sent_ms = 0;
 
 
 // MAIN PROGRAM CODE
-
 
 // Initialisation code
 
@@ -184,6 +254,9 @@ void setup() {
     Serial.write(END_MESSAGE_BYTE);
     
     enc_count_handshake_time_ms = millis();
+    
+    setup_all_pids();
+    init_pid_arrays();
 
     init_spi();
 
@@ -226,6 +299,76 @@ void init_pwm() {
     servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
 }
 
+void setup_all_pids() {
+    #if CCC_ENABLED
+        ccc_fl.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_ml.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_rl.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_fr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_mr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+        ccc_rr.SetOutputLimits(-1 * ROVER_MAX_SPEED_MPS, ROVER_MAX_SPEED_MPS);
+
+        ccc_fl.SetMode(AUTOMATIC);
+        ccc_ml.SetMode(AUTOMATIC);
+        ccc_rl.SetMode(AUTOMATIC);
+        ccc_fr.SetMode(AUTOMATIC);
+        ccc_mr.SetMode(AUTOMATIC);
+        ccc_rr.SetMode(AUTOMATIC);
+        
+        ccc_fl.SetSampleTime(PID_SAMPLE_TIME_MS);
+        ccc_ml.SetSampleTime(PID_SAMPLE_TIME_MS);
+        ccc_rl.SetSampleTime(PID_SAMPLE_TIME_MS);
+        ccc_fr.SetSampleTime(PID_SAMPLE_TIME_MS);
+        ccc_mr.SetSampleTime(PID_SAMPLE_TIME_MS);
+        ccc_rr.SetSampleTime(PID_SAMPLE_TIME_MS);
+    #endif
+
+    // Wheel PID outputs directly to desired duty cycle
+    fl_pid.SetOutputLimits(0, 1);
+    ml_pid.SetOutputLimits(0, 1);
+    rl_pid.SetOutputLimits(0, 1);
+    fr_pid.SetOutputLimits(0, 1);
+    mr_pid.SetOutputLimits(0, 1);
+    rr_pid.SetOutputLimits(0, 1);
+
+    fl_pid.SetMode(AUTOMATIC);
+    ml_pid.SetMode(AUTOMATIC);
+    rl_pid.SetMode(AUTOMATIC);
+    fr_pid.SetMode(AUTOMATIC);
+    mr_pid.SetMode(AUTOMATIC);
+    rr_pid.SetMode(AUTOMATIC);
+    
+    fl_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+    ml_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+    rl_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+    fr_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+    mr_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+    rr_pid.SetSampleTime(PID_SAMPLE_TIME_MS);
+}
+
+void init_pid_arrays() {
+    // Initialise PID arrays with encoder counts from board to avoid initial "kick"
+    for (uint8_t i = 0; i < ENCODER_HISTORY_LENGTH; i++) {
+        if (!read_encoder_counts()) {
+            pid_enabled = false;
+	    return;
+        }
+	update_wheel_velocity_estimates();
+    }
+
+    for (uint8_t i = 0; i < WHEELS_PER_SIDE; i++) {
+        lw_output[i] = 0.5;
+        rw_output[i] = 0.5;
+
+        #if CCC_ENABLED
+            lw_desired_vels[i] = 0;
+            rw_desired_vels[i] = 0;
+            ccc_left_errors[i] = 0;
+            ccc_right_errors[i] = 0;
+        #endif
+    }
+}
+
 void init_spi() {
     // Initialise SPI settings
     SPISettings spi_settings(SPI_CLOCKSPEED_HZ, MSBFIRST, SPI_MODE0);
@@ -254,20 +397,21 @@ void loop() {
     if (Serial.available() >= command_struct_len + 3) {
         // and if reading them is successful,
         if (read_commands()) {
-            // then set the motor velocities accordingly.
-            interpret_command_byte();
-            set_motor_velocities();
+            // then set the motor and arm velocities accordingly.
+            set_motor_velocity_targets();
+
+            set_arm_velocities();
+
             set_servo_positions();
+
             last_command_time_ms = millis();
         }
-        else {
+        else if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
             // If we've not got a valid command recently
-            if (millis() > last_command_time_ms + COMMAND_TIMEOUT_RESET_MS) {
-                // Set all motor velocities to zero
-                set_commands_default();
-                set_motor_velocities();
-                report_error(NO_COMMANDS_ERROR);
-            }
+            // Set all motor velocities to zero
+            set_commands_default();
+            set_motor_velocity_targets();
+            report_error(NO_COMMANDS_ERROR);
         }
         // Else, leave the velocities as they are.
     }
@@ -279,6 +423,8 @@ void loop() {
             // If the read is successful, record the read time
             last_encoder_msg_recv_ms = millis();
 
+            update_wheel_velocity_estimates();
+
             // Send encoder counts over serial if enough time has elapsed since the
             // last successful send. This data is only sent after successful reads
             // to ensure only new data is sent
@@ -289,13 +435,72 @@ void loop() {
             }
         }
         else {
+            if (millis() - last_encoder_failure < ENCODER_ALLOWABLE_FAILURE_PERIOD_MS) {
+                if (++recent_encoder_failures > PID_MAX_ENCODER_FAILURES) {
+                    pid_enabled = false;
+                    report_error(PID_DISABLED);
+                }
+            }
+            else {
+                recent_encoder_failures = 0;
+            }
+            last_encoder_failure = millis();
             report_error(ENCODER_READ_ERROR);
         }
     }
+
+    // If PID is enabled, determine wheel PWM outputs automatically
+    if (pid_enabled) {
+        #if CCC_ENABLED
+        compute_ccc_pids();
+        #endif
+        compute_wheel_pids();
+    }
+    // If PID is disabled, then just use open-loop control on the PWM signals
+    else {
+        set_wheel_pwm_open_loop();
+    }
 }
 
-// TODO: implement a timeout in case of Serial failure
-// Should be short, otherwise the rover will become pretty unresponsive
+void set_wheel_pwm_open_loop() {
+    // just convert target velocities straight to pwm outputs, without pid
+    float duty_cycle;
+    uint8_t wheel_num;
+
+    duty_cycle = 0.5 * (1 + (left_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    duty_cycle = 1 - duty_cycle;
+    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
+        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+    }
+
+    duty_cycle = 0.5 * (1 + (right_wheels_desired_vel / ROVER_MAX_LIN_SPEED_MPS));
+    duty_cycle = 1 - duty_cycle;
+    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
+        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
+    }
+}
+
+#if CCC_ENABLED
+void compute_ccc_pids() {
+    ccc_fl.Compute();
+    ccc_ml.Compute();
+    ccc_rl.Compute();
+    ccc_fr.Compute();
+    ccc_mr.Compute();
+    ccc_rr.Compute();
+}
+#endif
+
+void compute_wheel_pids() {
+    if (fl_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[0], lw_output[0]); }
+    if (ml_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[1], lw_output[1]); }
+    if (rl_pid.Compute()) { set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[2], lw_output[2]); }
+    if (fr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[0], rw_output[0]); }
+    if (mr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[1], rw_output[1]); }
+    if (rr_pid.Compute()) { set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[2], rw_output[2]); }
+}
+
+
 bool read_commands() {
     uint8_t rx_buffer[SERIAL_RX_BUFF_LEN];
 
@@ -360,6 +565,7 @@ void report_data(uint8_t * data, uint8_t len) {
 
 bool read_encoder_counts() {
     uint8_t attempts = 0;
+    uint32_t count_time = millis();
 
     // Enable the encoder counter SPI slave
     digitalWrite(SS, LOW);
@@ -413,8 +619,9 @@ bool read_encoder_counts() {
             if (checksum == recv_checksum) {
                 // Copy data from buffer into encoder struct
                 memcpy(encoder_struct_addr, rx_buffer, encoder_struct_len);
+
                 // Insert the timestamp
-                encoder_counts_struct.tick_stamp_ms = millis() - enc_count_handshake_time_ms;
+                encoder_counts_struct.tick_stamp_ms = count_time - enc_count_handshake_time_ms;
                 // Disable the encoder counter SPI slave
                 digitalWrite(SS, HIGH);
                 // And return true to indicate successful transfer
@@ -426,6 +633,8 @@ bool read_encoder_counts() {
             }
         }
     }
+
+    // Disable SPI slave
     digitalWrite(SS, HIGH);
 
     // If we fail to successfully read a message in the given number of attempts,
@@ -433,35 +642,22 @@ bool read_encoder_counts() {
     return false;
 }
 
-void interpret_command_byte() {
-    // Currently only have PID enable/disable to deal with
-    if (rover_command_struct.command_byte % 2) {
-        
-    }
+void set_motor_velocity_targets() {
+    float lin_vel = ROVER_MAX_LIN_SPEED_MPS * (commands.lin_vel - 100.0) / 100;
+    float ang_vel = ROVER_MAX_ANG_SPEED_RPS * (commands.ang_vel - 100.0) / 100;
+    left_wheels_desired_vel  = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    right_wheels_desired_vel = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
+    right_wheels_desired_vel *= -1;
 }
 
-void set_motor_velocities() {
-    // First set rover wheel velocites, linear then angular
-    float rover_target_velocity[2];
-    rover_target_velocity[0] = (rover_command_struct.rover_linear_velocity - 100) / 100.0;
-    rover_target_velocity[1] = (rover_command_struct.rover_angular_velocity - 100) / 100.0;
-
-    float wheel_speeds[2];
-
-    get_control_outputs(wheel_speeds, rover_target_velocity);
-    set_wheel_speeds(wheel_speeds);
-
-    // Then set arm velocities
-    set_arm_velocities();
-}
 
 void set_servo_positions() {
     // Need to convert from desired position in degrees to required
     // pwm parameters
-    uint16_t yaw_tick   = map(rover_command_struct.yaw_servo_position_deg,
+    uint16_t yaw_tick   = map(commands.yaw_servo_position_deg,
                               0, 180,
                               YAW_SERVO_MIN_TICK, YAW_SERVO_MAX_TICK);
-    uint16_t pitch_tick = map(rover_command_struct.pitch_servo_position_deg,
+    uint16_t pitch_tick = map(commands.pitch_servo_position_deg,
                               0, 180,
                               PITCH_SERVO_MIN_TICK, PITCH_SERVO_MAX_TICK);
 
@@ -469,78 +665,88 @@ void set_servo_positions() {
     servo_pwm.setPWM(CAMERA_PITCH_PWM, 0, pitch_tick);
 }
 
-// Given the desired (normalised) rover target velocity, determine the required
-// (normalised) velocity for each set of wheels
-void get_control_outputs(float control_outputs[], float rover_target_velocity[]) {
-    // control_outputs returns the desired motor speed for left and right sides
-    // rover_target_velocity should have a linear and an angular velocity component
-
-    // Left wheel velocity is difference of linear and angular velocities
-    control_outputs[0] = -1 * (rover_target_velocity[0] - rover_target_velocity[1]);
-
-    // Right wheel velocity is sum of linear and angular velocities
-    control_outputs[1] = rover_target_velocity[0] + rover_target_velocity[1];
-
-    // Scale outputs to be within the stated limits
-    control_outputs[0] *= MOTOR_MAX_SPEED;
-    control_outputs[1] *= MOTOR_MAX_SPEED;
-}
-
-void set_wheel_speeds(float wheel_speeds[]) {
-    // wheel_speeds is a float array: {left_wheels_relative_speed, right_wheels_relative_speed}
-    uint8_t wheel_num;
-    float duty_cycle, target_wheel_speed;
-
-    for (wheel_num = 0; wheel_num < WHEELS_PER_SIDE; wheel_num++) {
-        // Left wheel first
-        target_wheel_speed = wheel_speeds[0] * L_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-        duty_cycle = 0.5 * (1 + target_wheel_speed);
-        set_pwm_duty_cycle(L_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-
-        // Then right wheel
-        target_wheel_speed = wheel_speeds[1] * R_MOTOR_RELATIVE_SPEEDS[wheel_num] * MOTOR_MAX_SPEED;
-        duty_cycle = 0.5 * (1 + target_wheel_speed);
-        set_pwm_duty_cycle(R_MOTOR_PWM_CHANNELS[wheel_num], duty_cycle);
-    }
-}
 
 // TODO I'm sure this can be neatened up
 void set_arm_velocities() {
     float duty_cycle, target_speed;
     
-    target_speed = -1 * (rover_command_struct.base_rotation_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = -1 * (commands.base_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(BASE_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.arm_actuator_1_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = (commands.arm_actuator_1_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_1_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.arm_actuator_2_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = (commands.arm_actuator_2_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(ARM_ACTUATOR_2_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.wrist_rotation_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = -1 * (commands.wrist_rotation_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ROTATE_MOTOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.wrist_actuator_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = (commands.wrist_actuator_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(WRIST_ACTUATOR_PWM, duty_cycle);
 
-    target_speed = (rover_command_struct.gripper_velocity - 100) / 100.0;
-    target_speed *= MOTOR_MAX_SPEED;
+    target_speed = -1 * (commands.gripper_velocity - 100) / 100.0;
+    target_speed *= MOTOR_MAX_DUTY_CYCLE;
     duty_cycle = 0.5 * (1 + target_speed);
     set_pwm_duty_cycle(GRIPPER_MOTOR_PWM, duty_cycle);
 }
 
 void set_pwm_duty_cycle(uint8_t pwm_num, float duty_cycle) {
+    duty_cycle = constrain(duty_cycle, MIN_DUTY_CYCLE, MAX_DUTY_CYCLE);
     motor_pwm.setPWM(pwm_num, 0, duty_cycle * (PWM_TICKS - 1));
+}
+
+// This whole setup could probably be significantly cleaned up by having a good think
+// about what arrays are actually necessary, which need to be held long-term etc. Might
+// be easier/more clear to convert everything to metres ASAP.
+// Note: This MUST ONLY be called when there is new encoder data available, else it will
+// just push out old data and add duplicates of the most recent data
+void update_wheel_velocity_estimates() {
+    // Make room for the new encoder time values
+    for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
+        encoder_times[i] = encoder_times[i - 1];
+    }
+    // Do the same for the encoder counts
+    for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
+        for (uint8_t i = ENCODER_HISTORY_LENGTH - 1; i > 0; i--) {
+            lw_encoder_counts[wheel][i] = lw_encoder_counts[wheel][i - 1];
+            rw_encoder_counts[wheel][i] = rw_encoder_counts[wheel][i - 1];
+        }
+    }
+    // Put the new values in
+    encoder_times[0] = encoder_counts_struct.tick_stamp_ms;
+    lw_encoder_counts[0][0] = encoder_counts_struct.encoder_counts[FL_ENCODER];
+    lw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[ML_ENCODER];
+    lw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RL_ENCODER];
+    rw_encoder_counts[0][0] = encoder_counts_struct.encoder_counts[FR_ENCODER];
+    rw_encoder_counts[1][0] = encoder_counts_struct.encoder_counts[MR_ENCODER];
+    rw_encoder_counts[2][0] = encoder_counts_struct.encoder_counts[RR_ENCODER];
+
+    int32_t enc_diff, tick_diff;
+    float dist_m;
+    for (uint8_t wheel = 0; wheel < WHEELS_PER_SIDE; wheel++) {
+        enc_diff = lw_encoder_counts[wheel][0] - lw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+	enc_diff = max(1, enc_diff);  // Avoid zero division
+        dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
+        lw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
+
+        enc_diff = rw_encoder_counts[wheel][0] - rw_encoder_counts[wheel][ENCODER_HISTORY_LENGTH - 1];
+	enc_diff = max(1, enc_diff);  // Avoid zero division
+        dist_m = enc_diff * WHEEL_CIRCUMFERENCE_M / TICKS_PER_WHEEL_REV;
+        tick_diff = encoder_times[0] - encoder_times[ENCODER_HISTORY_LENGTH - 1];
+        rw_avg_vels[wheel] = 1000 * dist_m / tick_diff;
+    }
 }
 
 bool send_encoder_data() {
@@ -554,7 +760,7 @@ bool send_encoder_data() {
     Serial.write(ENCODER_DATA_BYTE);
 
     // Initialise the checksum with the message length
-    uint8_t struct_len = sizeof(encoder_counts_struct);
+    uint8_t struct_len = encoder_struct_len;
     uint8_t checksum = struct_len;
 
     // Send the message length
@@ -573,15 +779,15 @@ bool send_encoder_data() {
 }
 
 void set_commands_default() {
-    rover_command_struct.rover_linear_velocity = 100;
-    rover_command_struct.rover_angular_velocity = 100;
-    rover_command_struct.base_rotation_velocity = 100;
-    rover_command_struct.arm_actuator_1_velocity = 100;
-    rover_command_struct.arm_actuator_2_velocity = 100;
-    rover_command_struct.wrist_rotation_velocity = 100;
-    rover_command_struct.wrist_actuator_velocity = 100;
-    rover_command_struct.gripper_velocity = 100;
-    rover_command_struct.yaw_servo_position_deg = 90;
-    rover_command_struct.pitch_servo_position_deg = 90;
+    commands.lin_vel = 100;
+    commands.ang_vel = 100;
+    commands.base_rotation_velocity  = 100;
+    commands.arm_actuator_1_velocity = 100;
+    commands.arm_actuator_2_velocity = 100;
+    commands.wrist_rotation_velocity = 100;
+    commands.wrist_actuator_velocity = 100;
+    commands.gripper_velocity        = 100;
+    commands.yaw_servo_position_deg   = 90;
+    commands.pitch_servo_position_deg = 90;
 }
 
