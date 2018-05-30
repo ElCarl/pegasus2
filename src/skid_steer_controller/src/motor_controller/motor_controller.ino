@@ -122,6 +122,7 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t gripper_velocity;
     uint8_t yaw_servo_position_deg;
     uint8_t pitch_servo_position_deg;
+    uint8_t command_byte;  // LSB PID_ENABLE;X;X;X;X;X;X;X MSB
 };
 
 
@@ -254,6 +255,7 @@ void loop() {
         // and if reading them is successful,
         if (read_commands()) {
             // then set the motor velocities accordingly.
+            interpret_command_byte();
             set_motor_velocities();
             set_servo_positions();
             last_command_time_ms = millis();
@@ -429,6 +431,13 @@ bool read_encoder_counts() {
     // If we fail to successfully read a message in the given number of attempts,
     // return false to indicate failed transfer
     return false;
+}
+
+void interpret_command_byte() {
+    // Currently only have PID enable/disable to deal with
+    if (rover_command_struct.command_byte % 2) {
+        
+    }
 }
 
 void set_motor_velocities() {
