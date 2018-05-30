@@ -24,10 +24,8 @@ WRITE_TIMEOUT_S = 0.01
 
 # Program constants
 HANDSHAKE_TIMEOUT_MS = 5000
-TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
 # These bytes should maybe be reorganised at some point
-PID_TOGGLE_BYTE = b'\xf7'  # F7=247
 DEBUG_BYTE = b'\xf8'  # F8=248
 BOARD_STATUS_BYTE = b'\xf9'  # F9=249
 ENCODER_DATA_BYTE = b'\xfa'  # FA=250
@@ -360,17 +358,6 @@ class BoardInterface:
         except serial.SerialTimeoutException:
             rospy.logerr("Serial write timeout")
             # Just pass for now, ignoring this attempt and trying again later
-            pass
-
-    def toggle_pid(self):
-        checksum = PID_TOGGLE_BYTE ^ 1  # 1 is msg length
-        try:
-            self.serial_conn.write(BEGIN_MESSAGE_BYTE)
-            self.serial_conn.write(1)
-            self.serial_conn.write(PID_TOGGLE_BYTE)
-            self.serial_conn.write(checksum)
-        except serial.SerialTimeoutException:
-            rospy.logerr("Serial write timeout")
             pass
 
     def read_serial_data(self):
