@@ -4,6 +4,7 @@
 
 import rospy
 
+from std_msgs.msg import Bool
 from std_msgs.msg import Float32
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
@@ -21,6 +22,7 @@ STEERING_AXIS = 0
 CAMERA_YAW_AXIS = 3
 CAMERA_PITCH_AXIS = 4
 DRIVE_BOOST_BUTTON = 4
+PID_TOGGLE_BUTTON = 7  # Should be START, might be wrong
 
 # Rover arm controls
 BASE_ROTATE_AXIS = 0      # LS L/R
@@ -49,7 +51,8 @@ most_recent_joy_data.buttons = (0,) * 11
 # Global variables to hold the current control state
 control_states = ["drive", "arm"]
 current_control_state_index = 0
-switch_button_prev_state = 0  # Might this need debouncing?
+switch_button_prev_state = 0  # Might this need debouncing? Actually don't think the loop runs quickly enough for it
+toggle_pid_button_prev_state = 0
 
 
 def interpreter():
@@ -57,17 +60,20 @@ def interpreter():
     arm_command_pub = rospy.Publisher("rover_arm_commands", ArmCommand, queue_size=5)
     servo_yaw_pub = rospy.Publisher("servo_yaw_rate", Float32, queue_size=5)
     servo_pitch_pub = rospy.Publisher("servo_pitch_rate", Float32, queue_size=5)
+    pid_toggle_pub = rospy.Publisher("pid_toggle", Bool, queue_size=5)
 
     rospy.init_node("command_interpreter")
     rospy.loginfo("Node and publishers initialised")
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
 
     while not rospy.is_shutdown():
-        target_vel, arm_command, servo_yaw_command, servo_pitch_command = get_commands()
+        target_vel, arm_command, servo_yaw_command, servo_pitch_command, toggle_pid = get_commands()
         target_vel_pub.publish(target_vel)
         arm_command_pub.publish(arm_command)
         servo_yaw_pub.publish(servo_yaw_command)
         servo_pitch_pub.publish(servo_pitch_command)
+        if toggle_pid:
+            pid_toggle_pub.publish(toggle_pid)
         rate.sleep()
 
 
@@ -88,8 +94,17 @@ def get_commands():
         # Then change the control scheme
         current_control_state_index += 1
         current_control_state_index %= len(control_states)  # Ensure that result is within index
-        rospy.loginfo("Control scheme switched to %s",control_states[current_control_state_index])
+        rospy.loginfo("Control scheme switched to %s", control_states[current_control_state_index])
     switch_button_prev_state = input_buttons[CONTROL_SCHEME_CHANGE_BUTTON]
+
+    global toggle_pid_button_prev_state
+    # Similar to above! If button has been pressed (i.e. depressed now when it wasn't previously)
+    if input_buttons[PID_TOGGLE_BUTTON] == 1 and toggle_pid_button_prev_state == 0:
+        # Then toggle the PID!
+        pid_toggle = True
+    else:
+        pid_toggle = False
+    toggle_pid_button_prev_state = input_buttons[PID_TOGGLE_BUTTON]
 
     try:
         if control_states[current_control_state_index] == "drive":
@@ -125,7 +140,7 @@ def get_commands():
         rospy.logerr("Unknown command state detected, reverting to index 0")
         current_control_state_index = 0
 
-    return rover_target_vel, arm_command, servo_yaw_command, servo_pitch_command
+    return rover_target_vel, arm_command, servo_yaw_command, servo_pitch_command, pid_toggle
 
 
 def drive_interpreter(axes, buttons):

@@ -145,6 +145,7 @@ struct ROVER_COMMAND_DATA_STRUCTURE {
     uint8_t gripper_velocity;
     uint8_t yaw_servo_position_deg;
     uint8_t pitch_servo_position_deg;
+    uint8_t command_byte;  // LSB PID_ENABLE;X;X;X;X;X;X;X MSB
 };
 
 
@@ -400,6 +401,8 @@ void loop() {
             // then set the motor and arm velocities accordingly.
             set_motor_velocity_targets();
 
+            interpret_command_byte();
+
             set_arm_velocities();
 
             set_servo_positions();
@@ -648,6 +651,16 @@ void set_motor_velocity_targets() {
     left_wheels_desired_vel  = lin_vel - (ROVER_HALF_WHEEL_SEP_M * ang_vel);
     right_wheels_desired_vel = lin_vel + (ROVER_HALF_WHEEL_SEP_M * ang_vel);
     right_wheels_desired_vel *= -1;
+}
+
+void interpret_command_byte() {
+    // Currently only PID enable/disable
+    if (commands.command_byte % 2) {
+        pid_enabled = true;
+    }
+    else {
+        pid_enabled = false;
+    }
 }
 
 

@@ -5,6 +5,7 @@ import serial
 import time
 import struct
 
+from std_msgs.msg import Bool
 from std_msgs.msg import Float32
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Header
@@ -25,6 +26,8 @@ WRITE_TIMEOUT_S = 0.01
 HANDSHAKE_TIMEOUT_MS = 5000
 TIMEOUT_MS = 5000             # If no message is received for this long, restart comms TODO: actually implement!
 COMMAND_UPDATE_RATE = 20
+# These bytes should maybe be reorganised at some point
+PID_TOGGLE_BYTE = b'\xf7'  # F7=247
 DEBUG_BYTE = b'\xf8'  # F8=248
 BOARD_STATUS_BYTE = b'\xf9'  # F9=249
 ENCODER_DATA_BYTE = b'\xfa'  # FA=250
@@ -46,7 +49,8 @@ COMMAND_STRUCT = {
     "wrist_act": int,
     "gripper": int,
     "servo_yaw_pos_deg": int,
-    "servo_pitch_pos_deg": int
+    "servo_pitch_pos_deg": int,
+    "control_byte": int  # LSB PID_ENABLE;X;X;X;X;X;X;X MSB
 }
 COMMAND_STRUCT_LEN = len(COMMAND_STRUCT)
 COMMAND_STRUCT_FORMAT = "<{}B".format(COMMAND_STRUCT_LEN)  # Only valid when all commands are bytes
@@ -65,8 +69,6 @@ L_REAR_MOTOR_ENCODER = 7
 R_FRONT_MOTOR_ENCODER = 3
 R_MID_MOTOR_ENCODER = 2
 R_REAR_MOTOR_ENCODER = 1
-#BASE_ROTATE_MOTOR_ENCODER = 
-#WRIST_ROTATE_MOTOR_ENCODER = 
 GRIPPER_MOTOR_ENCODER = 4
 
 # Error codes
@@ -90,6 +92,7 @@ class RoverCommand:
     servo_pitch_pos = None
     last_yaw_servo_update_time = None
     last_pitch_servo_update_time = None
+    pid_enabled = True
 
     def __init__(self):
         # Initialise drive and arm commands with zeros
@@ -101,6 +104,7 @@ class RoverCommand:
         self.servo_pitch_pos = 90
         self.last_yaw_servo_update_time = time.time()
         self.last_pitch_servo_update_time = time.time()
+        self.pid_enabled = True
 
     def update_drive_command(self, vel_topic_data):
         """
@@ -131,6 +135,13 @@ class RoverCommand:
         self.servo_pitch_pos += MAX_SERVO_SPEED_DPS * dt * val
         self.servo_pitch_pos = constrain(self.servo_pitch_pos, MIN_SERVO_ANGLE, MAX_SERVO_ANGLE)
         self.last_pitch_servo_update_time = time.time()
+
+    def toggle_pid(self, toggle_pid_data):
+        self.pid_enabled = not self.pid_enabled
+        if self.pid_enabled:
+            rospy.loginfo("PID enabled")
+        else:
+            rospy.loginfo("PID disabled")
 
 
 class RoverController:
@@ -181,6 +192,9 @@ class RoverController:
         # Servo commands
         servo_yaw_pos_deg = self.rover_command.servo_yaw_pos
         servo_pitch_pos_deg = self.rover_command.servo_pitch_pos
+        # Command byte - currently only PID enable/disable
+        command_byte = self.rover_command.pid_enabled
+        # e.g. command_byte += other_command >> 1
 
         command_struct = [0] * COMMAND_STRUCT_LEN
 
@@ -197,7 +211,7 @@ class RoverController:
         command_struct[8] = int(servo_yaw_pos_deg)
         command_struct[9] = int(servo_pitch_pos_deg)
 
-        rospy.logdebug("Commands of type %s", type(command_struct[0]))
+        command_struct[10] = int(command_byte)
 
         self.board_interface.send_commands(command_struct)
 
@@ -348,6 +362,17 @@ class BoardInterface:
             # Just pass for now, ignoring this attempt and trying again later
             pass
 
+    def toggle_pid(self):
+        checksum = PID_TOGGLE_BYTE ^ 1  # 1 is msg length
+        try:
+            self.serial_conn.write(BEGIN_MESSAGE_BYTE)
+            self.serial_conn.write(1)
+            self.serial_conn.write(PID_TOGGLE_BYTE)
+            self.serial_conn.write(checksum)
+        except serial.SerialTimeoutException:
+            rospy.logerr("Serial write timeout")
+            pass
+
     def read_serial_data(self):
         if self.serial_conn.inWaiting() == 0:
             return
@@ -447,6 +472,7 @@ def main():
     rospy.Subscriber("rover_arm_commands", ArmCommand, rover_command.update_arm_command)
     rospy.Subscriber("servo_yaw_rate", Float32, rover_command.update_yaw_command)
     rospy.Subscriber("servo_pitch_rate", Float32, rover_command.update_pitch_command)
+    rospy.Subscriber("pid_toggle", Bool, rover_command.toggle_pid)
 
     rospy.loginfo("Subscribers initialised")
 
